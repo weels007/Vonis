@@ -23,6 +23,9 @@ concurrency:
   group: studionet-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 jobs:
   deploy-and-test:
     # Manual runs always execute; pushes only when the commit asks for it.
@@ -75,3 +78,21 @@ jobs:
           TEST2_PASSWORD: ${{ secrets.VONIS_TESTER2_PASSWORD || secrets.VONIS_TEST2_PASSWORD || secrets.TESTER2_PASSWORD || secrets.CLAUSEGUARD_TESTER2_PASSWORD }}
           RUN_ADJUDICATION: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_adjudication) && '1' || (contains(github.event.head_commit.message, '[adjudication]') && '1') || '0' }}
         run: node scripts/studionet.mjs
+
+      # Studionet state is temporary and every run deploys its own contract, so
+      # the frontend constant has to follow the newest address; the commit only
+      # touches src/, which the live workflow's path filter ignores.
+      - name: Record the deployed address
+        run: node scripts/record-address.mjs
+
+      - name: Commit the address
+        run: |
+          if git diff --quiet -- src/lib/genlayer.ts; then
+            echo "the frontend already points at this deployment"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/genlayer.ts
+          git commit -m "Record Studionet deployment ${CONTRACT_ADDRESS} in the frontend"
+          git push

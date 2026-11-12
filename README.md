@@ -147,15 +147,18 @@ The frontend is a plain Vite build with hash routing, so it deploys as a static 
 
 No rewrites are needed: every page lives behind `#/`, so deep links resolve to the same `index.html`.
 The wallet needs Studionet (chain id `61999`) in MetaMask, which the connect button offers to add.
-Remember the hard-set address is a Studionet deployment: update `CONTRACT_ADDRESS` and redeploy when
-the node resets or a new run reports a new contract.
+Remember the hard-set address is a Studionet deployment: the workflow records the newest one in
+`CONTRACT_ADDRESS` and commits it, so a connected Vercel project rebuilds on its own. If the node
+resets before a new run, re-run the workflow or edit that one line.
 
 Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`, which deploys,
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
 Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet. It
 runs on `workflow_dispatch`, or on a push touching `contracts/`, `scripts/` or `tests/` whose commit
 message carries `[studionet]` (add `[adjudication]` to also run the real LLM dispute path). Every
-receipt poll waits 10 seconds, which keeps the run inside Studionet's request budget.
+receipt poll waits 10 seconds, which keeps the run inside Studionet's request budget. After a
+successful run it writes the new address into `CONTRACT_ADDRESS` and commits that, so static hosts
+follow the deployment; the commit touches only `src/`, so it never starts another live run.
 
 ## Security properties enforced by tests
 
