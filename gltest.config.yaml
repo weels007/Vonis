@@ -2,19 +2,16 @@ networks:
   default: localnet
 
   localnet:
-    url: "http://127.0.0.1:4000/api"
     leader_only: false
 
-  studionet:
-    # Pre-configured by genlayer-test; accounts are generated automatically.
-
-  testnet_bradbury:
-    accounts:
-      - "${ACCOUNT_PRIVATE_KEY_1}"
-    from: "${ACCOUNT_PRIVATE_KEY_1}"
+# Studio/Bradbury networks are preconfigured by genlayer-test. Add them here only
+# when you actually run Studio-mode tests and can provide account keys:
+#
+#  testnet_bradbury:
+#    accounts:
+#      - "${ACCOUNT_PRIVATE_KEY_1}"
+#    from: "${ACCOUNT_PRIVATE_KEY_1}"
 
 paths:
   contracts: "contracts"
   artifacts: "artifacts"
-
-environment: .env
