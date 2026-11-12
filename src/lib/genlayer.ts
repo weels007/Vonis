@@ -79,10 +79,10 @@ export async function writeVonis(
   value: bigint = 0n
 ): Promise<WriteResult> {
   if (!IS_CONFIGURED) {
-    throw new Error("VITE_CONTRACT_ADDRESS belum diisi.");
+    throw new Error("VITE_CONTRACT_ADDRESS is not set.");
   }
   if (!window.ethereum) {
-    throw new Error("Wallet tidak ditemukan.");
+    throw new Error("No wallet found.");
   }
 
   await ensureNetwork();
@@ -120,14 +120,14 @@ export async function writeVonis(
       status: TransactionStatus.ACCEPTED,
     }),
     180_000,
-    "Transaksi melewati batas waktu tunggu (3 menit)."
+    "Transaction timed out after 3 minutes."
   );
 
   const execution = String(receipt?.txExecutionResultName ?? "UNKNOWN");
 
   if (execution === "FINISHED_WITH_ERROR") {
     throw new Error(
-      "Transaksi diterima tetapi eksekusi kontrak gagal (FINISHED_WITH_ERROR). Periksa detail transaksi."
+      "Transaction accepted but contract execution failed (FINISHED_WITH_ERROR). Check the transaction details."
     );
   }
 

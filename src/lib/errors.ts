@@ -1,5 +1,5 @@
 /**
- * Maps raw wallet / contract errors to short, actionable Indonesian messages.
+ * Maps raw wallet / contract errors to short, actionable English messages.
  * The raw message is still kept in the transaction record for debugging.
  */
 export function friendlyError(input: unknown): string {
@@ -10,55 +10,56 @@ export function friendlyError(input: unknown): string {
         ? input
         : JSON.stringify(input);
 
-  const text = (raw || "Terjadi kesalahan tak terduga.").trim();
+  const text = (raw || "Something went wrong.").trim();
   const lower = text.toLowerCase();
 
   if (lower.includes("user rejected") || lower.includes("4001") || lower.includes("denied"))
-    return "Transaksi dibatalkan di wallet.";
+    return "Transaction rejected in the wallet.";
   if (lower.includes("wallet tidak ditemukan") || lower.includes("no wallet"))
-    return "Wallet tidak ditemukan. Buka lewat browser dengan MetaMask.";
+    return "No wallet found. Open this page in a browser with MetaMask.";
   if (lower.includes("insufficient funds") || lower.includes("insufficient balance"))
-    return "Saldo tidak cukup untuk reward dan biaya transaksi.";
+    return "Insufficient balance for the reward and network fees.";
   if (lower.includes("chain") && (lower.includes("mismatch") || lower.includes("wrong")))
-    return "Wallet berada di jaringan yang salah. Ganti jaringan lalu coba lagi.";
+    return "The wallet is on the wrong network. Switch networks and try again.";
   if (lower.includes("vite_contract_address"))
-    return "Alamat kontrak belum diatur (VITE_CONTRACT_ADDRESS).";
+    return "Contract address is not configured (VITE_CONTRACT_ADDRESS).";
   if (lower.includes("timed out") || lower.includes("timeout"))
-    return "Transaksi melewati batas waktu tunggu. Cek hash-nya di explorer sebelum mencoba lagi.";
+    return "The transaction took too long. Check its hash in the explorer before retrying.";
   if (lower.includes("execution") && lower.includes("error"))
-    return "Transaksi diterima tetapi eksekusi kontrak gagal. Buka detail untuk melihat hash.";
+    return "The transaction was accepted but contract execution failed. Open the transaction details.";
 
-  if (lower.includes("case not found")) return "Kasus tidak ditemukan.";
-  if (lower.includes("case not open")) return "Kasus tidak lagi menunggu provider.";
-  if (lower.includes("case not accepted")) return "Provider belum menerima penugasan.";
-  if (lower.includes("case not delivered")) return "Bukti belum dikirim.";
-  if (lower.includes("case not disputed")) return "Kasus ini tidak sedang disengketakan.";
-  if (lower.includes("case is not ruled")) return "Kasus belum diputus.";
-  if (lower.includes("case is not finalizable")) return "Kasus tidak bisa diselesaikan sekarang.";
-  if (lower.includes("case is not reviewable")) return "Kasus tidak bisa ditinjau pada status ini.";
-  if (lower.includes("appeal window open")) return "Jendela banding masih terbuka.";
+  if (lower.includes("case not found")) return "Case not found.";
+  if (lower.includes("case not open")) return "This case is no longer awaiting the provider.";
+  if (lower.includes("case not accepted")) return "The provider has not accepted this case.";
+  if (lower.includes("case not delivered")) return "No evidence has been submitted yet.";
+  if (lower.includes("case not disputed")) return "This case is not in dispute.";
+  if (lower.includes("case is not ruled")) return "This case has not been ruled yet.";
+  if (lower.includes("case is not finalizable")) return "This case cannot be settled yet.";
+  if (lower.includes("case is not reviewable"))
+    return "This case cannot be reviewed in its current state.";
+  if (lower.includes("appeal window open")) return "The appeal window is still open.";
   if (lower.includes("judge decision required"))
-    return "Kasus perlu keputusan hakim sebelum bisa dibayar.";
-  if (lower.includes("only provider")) return "Hanya provider yang bisa melakukan aksi ini.";
-  if (lower.includes("only requester")) return "Hanya requester yang bisa melakukan aksi ini.";
-  if (lower.includes("only judge")) return "Hanya hakim yang bisa melakukan aksi ini.";
-  if (lower.includes("not a party")) return "Wallet ini bukan pihak dalam kasus tersebut.";
-  if (lower.includes("not allowed")) return "Wallet ini tidak berhak mengadili kasus tersebut.";
-  if (lower.includes("bad evidence")) return "Bukti tidak valid: maksimal 3 URL http/https.";
-  if (lower.includes("bad claim")) return "Alasan sengketa tidak valid.";
-  if (lower.includes("bad spec url")) return "URL spesifikasi tidak valid.";
-  if (lower.includes("bad title")) return "Judul tidak valid.";
-  if (lower.includes("bad rubric")) return "Rubrik tidak valid.";
-  if (lower.includes("deadline in past")) return "Tenggat sudah lewat.";
-  if (lower.includes("delivery deadline passed")) return "Tenggat penyerahan sudah lewat.";
-  if (lower.includes("dispute window closed")) return "Jendela sengketa sudah ditutup.";
-  if (lower.includes("nothing to withdraw")) return "Tidak ada dana yang bisa diklaim.";
-  if (lower.includes("agent not registered")) return "Agen belum terdaftar di kontrak.";
-  if (lower.includes("active cases")) return "Stake tidak bisa ditarik selama ada kasus aktif.";
-  if (lower.includes("amount exceeds stake")) return "Jumlah melebihi stake.";
-  if (lower.includes("nothing to withdraw")) return "Tidak ada dana yang bisa diklaim.";
+    return "A judge decision is required before this case can be paid out.";
+  if (lower.includes("only provider")) return "Only the provider can do this.";
+  if (lower.includes("only requester")) return "Only the requester can do this.";
+  if (lower.includes("only judge")) return "Only the judge can do this.";
+  if (lower.includes("not a party")) return "This wallet is not a party to that case.";
+  if (lower.includes("not allowed"))
+    return "This wallet is not allowed to adjudicate that case.";
+  if (lower.includes("bad evidence")) return "Invalid evidence: up to 3 http/https URLs.";
+  if (lower.includes("bad claim")) return "Enter a valid dispute reason.";
+  if (lower.includes("bad spec url")) return "Enter a valid specification URL.";
+  if (lower.includes("bad title")) return "Enter a valid title.";
+  if (lower.includes("bad rubric")) return "Enter a valid rubric.";
+  if (lower.includes("deadline in past")) return "The deadline is in the past.";
+  if (lower.includes("delivery deadline passed")) return "The delivery deadline has passed.";
+  if (lower.includes("dispute window closed")) return "The dispute window has closed.";
+  if (lower.includes("nothing to withdraw")) return "There are no funds to claim.";
+  if (lower.includes("agent not registered")) return "That agent is not registered.";
+  if (lower.includes("active cases")) return "Stake cannot be withdrawn while cases are active.";
+  if (lower.includes("amount exceeds stake")) return "Amount exceeds the staked balance.";
   if (lower.includes("failed to fetch") || lower.includes("fetch failed"))
-    return "Tidak bisa menghubungi jaringan. Periksa koneksi lalu coba lagi.";
+    return "Cannot reach the network. Check your connection and try again.";
 
   return text.length > 220 ? text.slice(0, 217) + "…" : text;
 }

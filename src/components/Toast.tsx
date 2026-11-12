@@ -11,14 +11,18 @@ type Props = {
 export default function Toast({ item, onOpen, onDismiss }: Props) {
   const success = item.status === "success";
   return (
-    <div className={"toast " + (success ? "ok" : "error")} role="alert" aria-live="polite">
+    <div
+      className={"toast " + (success ? "ok" : "error")}
+      role="alert"
+      aria-live="polite"
+    >
       <div className="toast-body">
-        <strong>{success ? item.label + " berhasil" : item.label + " gagal"}</strong>
+        <strong>{success ? item.label + " succeeded" : item.label + " failed"}</strong>
         <span>{success ? item.method : item.error}</span>
         {item.hash && (
           <div className="toast-links">
             <button className="link" type="button" onClick={() => onOpen(item.hash!)}>
-              Detail transaksi
+              Transaction details
             </button>
             <a className="link" href={explorerTx(item.hash)} target="_blank" rel="noreferrer">
               {shortAddress(item.hash)}
@@ -26,7 +30,7 @@ export default function Toast({ item, onOpen, onDismiss }: Props) {
           </div>
         )}
       </div>
-      <button className="toast-close" type="button" aria-label="Tutup" onClick={onDismiss}>
+      <button className="toast-close" type="button" aria-label="Dismiss" onClick={onDismiss}>
         ×
       </button>
     </div>

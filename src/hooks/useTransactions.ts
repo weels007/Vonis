@@ -68,7 +68,7 @@ export function useTransactions() {
       action: () => Promise<string>
     ): Promise<RunResult> => {
       if (locks.current.has(key)) {
-        return { ok: false, error: "Aksi ini sedang diproses." };
+        return { ok: false, error: "This action is already in progress." };
       }
 
       locks.current.add(key);

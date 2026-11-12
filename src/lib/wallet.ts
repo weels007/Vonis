@@ -42,9 +42,7 @@ export async function currentChainId(): Promise<number | null> {
  */
 export function connectWallet(): Promise<string> {
   if (!hasWallet()) {
-    return Promise.reject(
-      new Error("Wallet tidak ditemukan. Buka lewat browser dengan MetaMask.")
-    );
+    return Promise.reject(new Error("No wallet found. Open this page in a browser with MetaMask."));
   }
 
   if (!connectInFlight) {
@@ -54,7 +52,7 @@ export function connectWallet(): Promise<string> {
           method: "eth_requestAccounts",
         })) as string[];
         if (!accounts || accounts.length === 0) {
-          throw new Error("Wallet tidak mengembalikan akun.");
+          throw new Error("The wallet returned no accounts.");
         }
         localStorage.setItem("vonis.wallet.connected", "1");
         return accounts[0];
@@ -72,7 +70,7 @@ export function connectWallet(): Promise<string> {
 }
 
 export async function ensureNetwork(): Promise<void> {
-  if (!hasWallet()) throw new Error("Wallet tidak ditemukan.");
+  if (!hasWallet()) throw new Error("No wallet found.");
   const chainId = await currentChainId();
   if (chainId === CHAIN.id) return;
 

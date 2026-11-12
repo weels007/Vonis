@@ -71,7 +71,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
       <div className="detail-head">
         <div>
           <span className="eyebrow">{c.id}</span>
-          <h2>{c.title || "Tanpa judul"}</h2>
+          <h2>{c.title || "Untitled case"}</h2>
         </div>
         <span className={"chip " + statusTone(c.status)}>{statusLabel(c.status)}</span>
       </div>
@@ -81,7 +81,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           <>
             <div className="verdict-top">
               <div>
-                <span className="eyebrow">Putusan AI consensus</span>
+                <span className="eyebrow">AI consensus verdict</span>
                 <h3 className={"chip " + verdictTone(c.verdict)}>{verdictLabel(c.verdict)}</h3>
               </div>
               <div className="score">
@@ -100,7 +100,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
             </div>
 
             <p className="muted">
-              Award {percent(c.award_bps)} dari {formatGen(c.reward)} · dinilai{" "}
+              Award {percent(c.award_bps)} of {formatGen(c.reward)} · judged{" "}
               {formatDate(c.adjudicated_ts)}
             </p>
 
@@ -112,26 +112,26 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
                   <li key={item.id} className={item.met ? "ok" : "no"}>
                     <span className="crit-icon">{item.met ? "✓" : "✕"}</span>
                     <div>
-                      <strong>Kriteria {item.id}</strong>
-                      <em>{item.why || (item.met ? "Terpenuhi." : "Tidak terpenuhi.")}</em>
+                      <strong>Criterion {item.id}</strong>
+                      <em>{item.why || (item.met ? "Met." : "Not met.")}</em>
                     </div>
                   </li>
                 ))}
               </ul>
             )}
 
-            {c.judge_note ? <p className="muted">Catatan hakim: {c.judge_note}</p> : null}
+            {c.judge_note ? <p className="muted">Judge note: {c.judge_note}</p> : null}
           </>
         ) : (
           <p className="muted">
-            Belum ada putusan AI. Putusan muncul setelah sengketa diadili.
+            No verdict yet. A verdict appears once the dispute is adjudicated.
           </p>
         )}
       </section>
 
       {c.claim ? (
         <section>
-          <h3>Klaim sengketa</h3>
+          <h3>Dispute claim</h3>
           <p>{c.claim}</p>
         </section>
       ) : null}
@@ -146,165 +146,171 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           <strong>{shortAddress(c.provider)}</strong>
         </div>
         <div>
-          <span>Tenggat bukti</span>
+          <span>Evidence deadline</span>
           <strong>{formatDate(c.delivery_deadline)}</strong>
         </div>
         <div>
-          <span>Bukti dikirim</span>
+          <span>Evidence submitted</span>
           <strong>{formatDate(c.submitted_ts)}</strong>
         </div>
         <div>
-          <span>Jendela banding</span>
+          <span>Appeal window</span>
           <strong>{formatDate(c.appeal_deadline)}</strong>
         </div>
         <div>
-          <span>Pembayaran</span>
+          <span>Payment</span>
           <strong>
             {settled
-              ? formatGen(c.credit_provider) + " ke provider"
-              : "belum diselesaikan"}
+              ? formatGen(c.credit_provider) + " to provider"
+              : "not settled yet"}
           </strong>
         </div>
       </section>
 
       {hasActions && (
         <section className="actions">
-          <h3>Aksi</h3>
-          {noWallet && <p className="muted">Hubungkan wallet untuk mengirim transaksi.</p>}
+          <h3>Actions</h3>
+          {noWallet && <p className="muted">Connect a wallet to send transactions.</p>}
 
           {canAccept && (
-          <button
-            type="button"
-            disabled={noWallet || pending(acceptKey)}
-            onClick={() =>
-              onAction(acceptKey, "Terima penugasan", "accept_case", [c.id])
-            }
-          >
-            {pending(acceptKey) ? "Memproses…" : "Terima penugasan"}
-          </button>
-        )}
-
-        {canDeliver && (
-          <div className="field">
-            <label htmlFor={"evidence-" + c.id}>Bukti (URL, satu per baris, maksimal 3)</label>
-            <textarea
-              id={"evidence-" + c.id}
-              rows={3}
-              value={evidence}
-              placeholder="https://repo.example/hasil"
-              onChange={(event) => setEvidence(event.target.value)}
-            />
             <button
               type="button"
-              disabled={noWallet || pending(deliverKey) || !evidence.trim()}
+              disabled={noWallet || pending(acceptKey)}
               onClick={() =>
-                onAction(deliverKey, "Kirim bukti", "deliver_case", [
-                  c.id,
-                  evidence.trim(),
-                ])
+                onAction(acceptKey, "Accept assignment", "accept_case", [c.id])
               }
             >
-              {pending(deliverKey) ? "Mengirim…" : "Kirim bukti"}
+              {pending(acceptKey) ? "Working…" : "Accept assignment"}
             </button>
-          </div>
-        )}
+          )}
 
-        {canAcceptDelivery && (
-          <button
-            type="button"
-            disabled={noWallet || pending(acceptDeliveryKey)}
-            onClick={() =>
-              onAction(acceptDeliveryKey, "Terima hasil", "accept_delivery", [c.id])
-            }
-          >
-            {pending(acceptDeliveryKey)
-              ? "Memproses…"
-              : "Terima hasil (reward cair penuh)"}
-          </button>
-        )}
-
-        {canDispute && (
-          <div className="field">
-            <label htmlFor={"claim-" + c.id}>Alasan sengketa</label>
-            <textarea
-              id={"claim-" + c.id}
-              rows={2}
-              value={claim}
-              placeholder="Kriteria apa yang tidak terpenuhi?"
-              onChange={(event) => setClaim(event.target.value)}
-            />
-            <button
-              type="button"
-              disabled={noWallet || pending(disputeKey) || !claim.trim()}
-              onClick={() =>
-                onAction(disputeKey, "Buka sengketa", "raise_dispute", [
-                  c.id,
-                  claim.trim(),
-                ])
-              }
-            >
-              {pending(disputeKey) ? "Mengirim…" : "Buka sengketa"}
-            </button>
-          </div>
-        )}
-
-        {canAdjudicate && (
-          <button
-            type="button"
-            disabled={noWallet || pending(adjudicateKey)}
-            onClick={() =>
-              onAction(adjudicateKey, "Minta putusan AI", "adjudicate", [c.id])
-            }
-          >
-            {pending(adjudicateKey) ? "Mengadili…" : "Minta putusan AI"}
-          </button>
-        )}
-
-        {canFinalize && (
-          <button
-            type="button"
-            disabled={noWallet || pending(finalizeKey)}
-            onClick={() =>
-              onAction(finalizeKey, "Selesaikan kasus", "finalize_case", [c.id])
-            }
-          >
-            {pending(finalizeKey) ? "Menyelesaikan…" : "Selesaikan dan bayar"}
-          </button>
-        )}
-
-        {canCancel && (
-          <>
-            {!confirmCancel ? (
+          {canDeliver && (
+            <div className="field">
+              <label htmlFor={"evidence-" + c.id}>
+                Evidence (URLs, one per line, max 3)
+              </label>
+              <textarea
+                id={"evidence-" + c.id}
+                rows={3}
+                value={evidence}
+                placeholder="https://repo.example/work"
+                onChange={(event) => setEvidence(event.target.value)}
+              />
               <button
                 type="button"
-                className="ghost"
-                disabled={noWallet || pending(cancelKey)}
-                onClick={() => setConfirmCancel(true)}
+                disabled={noWallet || pending(deliverKey) || !evidence.trim()}
+                onClick={() =>
+                  onAction(deliverKey, "Submit evidence", "deliver_case", [
+                    c.id,
+                    evidence.trim(),
+                  ])
+                }
               >
-                Batalkan dan kembalikan dana
+                {pending(deliverKey) ? "Submitting…" : "Submit evidence"}
               </button>
-            ) : (
-              <div className="confirm">
-                <p>Yakin membatalkan? Reward dikembalikan ke requester.</p>
-                <div className="row">
-                  <button type="button" className="ghost" onClick={() => setConfirmCancel(false)}>
-                    Tidak
-                  </button>
-                  <button
-                    type="button"
-                    disabled={pending(cancelKey)}
-                    onClick={() => {
-                      setConfirmCancel(false);
-                      onAction(cancelKey, "Batalkan kasus", "cancel_case", [c.id]);
-                    }}
-                  >
-                    {pending(cancelKey) ? "Membatalkan…" : "Ya, batalkan"}
-                  </button>
+            </div>
+          )}
+
+          {canAcceptDelivery && (
+            <button
+              type="button"
+              disabled={noWallet || pending(acceptDeliveryKey)}
+              onClick={() =>
+                onAction(acceptDeliveryKey, "Accept deliverable", "accept_delivery", [c.id])
+              }
+            >
+              {pending(acceptDeliveryKey)
+                ? "Working…"
+                : "Accept deliverable (release full reward)"}
+            </button>
+          )}
+
+          {canDispute && (
+            <div className="field">
+              <label htmlFor={"claim-" + c.id}>Dispute reason</label>
+              <textarea
+                id={"claim-" + c.id}
+                rows={2}
+                value={claim}
+                placeholder="Which criteria were not met?"
+                onChange={(event) => setClaim(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={noWallet || pending(disputeKey) || !claim.trim()}
+                onClick={() =>
+                  onAction(disputeKey, "Raise dispute", "raise_dispute", [
+                    c.id,
+                    claim.trim(),
+                  ])
+                }
+              >
+                {pending(disputeKey) ? "Submitting…" : "Raise dispute"}
+              </button>
+            </div>
+          )}
+
+          {canAdjudicate && (
+            <button
+              type="button"
+              disabled={noWallet || pending(adjudicateKey)}
+              onClick={() =>
+                onAction(adjudicateKey, "Request AI verdict", "adjudicate", [c.id])
+              }
+            >
+              {pending(adjudicateKey) ? "Adjudicating…" : "Request AI verdict"}
+            </button>
+          )}
+
+          {canFinalize && (
+            <button
+              type="button"
+              disabled={noWallet || pending(finalizeKey)}
+              onClick={() =>
+                onAction(finalizeKey, "Settle case", "finalize_case", [c.id])
+              }
+            >
+              {pending(finalizeKey) ? "Settling…" : "Settle and pay out"}
+            </button>
+          )}
+
+          {canCancel && (
+            <>
+              {!confirmCancel ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={noWallet || pending(cancelKey)}
+                  onClick={() => setConfirmCancel(true)}
+                >
+                  Cancel and refund
+                </button>
+              ) : (
+                <div className="confirm">
+                  <p>Cancel this case? The reward is refunded to the requester.</p>
+                  <div className="row">
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => setConfirmCancel(false)}
+                    >
+                      No
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending(cancelKey)}
+                      onClick={() => {
+                        setConfirmCancel(false);
+                        onAction(cancelKey, "Cancel case", "cancel_case", [c.id]);
+                      }}
+                    >
+                      {pending(cancelKey) ? "Cancelling…" : "Yes, cancel"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
         </section>
       )}
     </div>

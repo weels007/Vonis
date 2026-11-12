@@ -1,5 +1,12 @@
 import type { CaseView } from "../lib/types";
-import { formatGen, shortAddress, statusLabel, statusTone, verdictLabel, verdictTone } from "../lib/format";
+import {
+  formatGen,
+  shortAddress,
+  statusLabel,
+  statusTone,
+  verdictLabel,
+  verdictTone,
+} from "../lib/format";
 
 type Props = {
   cases: CaseView[];
@@ -9,7 +16,7 @@ type Props = {
 
 export default function CaseList({ cases, selectedId, onSelect }: Props) {
   if (cases.length === 0) {
-    return <p className="muted">Belum ada kasus di kontrak ini.</p>;
+    return <p className="muted">No cases in this contract yet.</p>;
   }
 
   return (

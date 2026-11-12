@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import CaseDetail from "./components/CaseDetail";
-import CaseList from "./components/CaseList";
-import ConnectButton from "./components/ConnectButton";
-import NewCaseForm from "./components/NewCaseForm";
+import { useCallback, useEffect, useState } from "react";
+import SiteHeader from "./components/SiteHeader";
 import Toast from "./components/Toast";
 import TxPanel from "./components/TxPanel";
 import { useTransactions } from "./hooks/useTransactions";
@@ -13,13 +10,12 @@ import {
   CONTRACT_ADDRESS,
   IS_CONFIGURED,
   NETWORK_LABEL,
-  explorerAddress,
   getCase,
   getCaseCount,
   getCreditOf,
   writeVonis,
 } from "./lib/genlayer";
-import { formatGen, shortAddress } from "./lib/format";
+import { navigate, useRoute } from "./lib/router";
 import type { CaseView } from "./lib/types";
 import {
   connectWallet,
@@ -29,6 +25,11 @@ import {
   silentAccount,
   watchWallet,
 } from "./lib/wallet";
+import CaseDetailPage from "./pages/CaseDetailPage";
+import CasesPage from "./pages/Cases";
+import Landing from "./pages/Landing";
+import NewCase from "./pages/NewCase";
+import Transactions from "./pages/Transactions";
 
 function makeToast(
   label: string,
@@ -52,10 +53,10 @@ function makeToast(
 }
 
 export default function App() {
+  const route = useRoute();
   const [account, setAccount] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
   const [cases, setCases] = useState<CaseView[]>(IS_CONFIGURED ? [] : DEMO_CASES);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [demo, setDemo] = useState(!IS_CONFIGURED);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
@@ -90,7 +91,6 @@ export default function App() {
       setCases(list);
       setDemo(false);
       setError("");
-      setSelectedId((current) => current ?? (list[0]?.id ?? null));
     } catch (err) {
       setError(friendlyError(err));
       setDemo(true);
@@ -153,11 +153,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const selected = useMemo(
-    () => cases.find((item) => item.id === selectedId) ?? cases[0] ?? null,
-    [cases, selectedId]
-  );
-
   const handleConnect = async () => {
     if (connecting) return;
     try {
@@ -169,7 +164,7 @@ export default function App() {
     } catch (err) {
       setToast(
         makeToast(
-          "Hubungkan wallet",
+          "Connect wallet",
           "eth_requestAccounts",
           false,
           undefined,
@@ -189,7 +184,7 @@ export default function App() {
     } catch (err) {
       setToast(
         makeToast(
-          "Ganti jaringan",
+          "Switch network",
           "wallet_switchEthereumChain",
           false,
           undefined,
@@ -208,7 +203,7 @@ export default function App() {
     value: bigint = 0n
   ): Promise<boolean> => {
     if (!account) {
-      setToast(makeToast(label, method, false, undefined, "Hubungkan wallet dulu."));
+      setToast(makeToast(label, method, false, undefined, "Connect a wallet first."));
       return false;
     }
 
@@ -225,115 +220,84 @@ export default function App() {
     return result.ok;
   };
 
+  const handleCreate = async (args: unknown[], value: bigint): Promise<boolean> => {
+    const ok = await handleAction("create-case", "Open case", "open_case", args, value);
+    if (ok) navigate({ name: "cases" });
+    return ok;
+  };
+
   const handleWithdraw = async () => {
-    const ok = await handleAction("withdraw", "Klaim dana", "withdraw", []);
+    const ok = await handleAction("withdraw", "Claim funds", "withdraw", []);
     if (ok) setCredit(0);
   };
 
   const pendingCount = items.filter((item) => item.status === "pending").length;
 
   return (
-    <div className="page">
-      <header className="topbar">
-        <div className="brand">
-          <div className="mark">V</div>
-          <div>
-            <h1>Vonis</h1>
-            <p>Pengadilan sengketa agen, diputus oleh consensus AI.</p>
-          </div>
-        </div>
+    <div className="site">
+      <SiteHeader
+        routeName={route.name}
+        networkLabel={NETWORK_LABEL}
+        configured={IS_CONFIGURED}
+        contractAddress={CONTRACT_ADDRESS}
+        account={account}
+        chainId={chainId}
+        connecting={connecting}
+        credit={credit}
+        balance={balance}
+        pendingWithdraw={pendingKeys.has("withdraw")}
+        pendingCount={pendingCount}
+        onConnect={() => void handleConnect()}
+        onSwitch={() => void handleSwitch()}
+        onWithdraw={() => void handleWithdraw()}
+      />
 
-        <div className="topbar-actions">
-          <span className="chip">{NETWORK_LABEL}</span>
-          {IS_CONFIGURED ? (
-            <a
-              className="chip"
-              href={explorerAddress(CONTRACT_ADDRESS)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {shortAddress(CONTRACT_ADDRESS)}
-            </a>
-          ) : (
-            <span className="chip warn">kontrak belum diatur</span>
-          )}
-          {account && <span className="chip muted">{formatGen(Number(balance))}</span>}
-          <ConnectButton
-            account={account}
-            chainId={chainId}
-            connecting={connecting}
-            onConnect={() => void handleConnect()}
-            onSwitch={() => void handleSwitch()}
-          />
-          {credit > 0 && (
-            <button
-              className="btn primary"
-              type="button"
-              disabled={pendingKeys.has("withdraw")}
-              onClick={() => void handleWithdraw()}
-            >
-              {pendingKeys.has("withdraw") ? "Mengklaim…" : "Klaim " + formatGen(credit)}
-            </button>
-          )}
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => {
-              setFocusHash(null);
-              setTxOpen(true);
-            }}
-          >
-            Transaksi{pendingCount > 0 ? " (" + pendingCount + ")" : ""}
-          </button>
-        </div>
-      </header>
+      <main className="content">
+        {error && <div className="toast error error-banner">{error}</div>}
 
-      {demo && (
-        <div className="banner">
-          Mode demo — menampilkan data contoh. Isi <code>VITE_CONTRACT_ADDRESS</code> di
-          <code> .env.local</code> untuk membaca kontrak nyata.
-        </div>
-      )}
+        {route.name === "landing" ? (
+          <Landing demoCase={DEMO_CASES[0]} />
+        ) : (
+          <>
+            {demo && (
+              <div className="banner">
+                Demo data — set <code>VITE_CONTRACT_ADDRESS</code> in <code>.env.local</code> to read
+                the live contract.
+              </div>
+            )}
 
-      {error && <div className="toast error">{error}</div>}
+            {route.name === "cases" && <CasesPage cases={cases} />}
 
-      <main className="grid">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Kasus</h2>
-            <span className="chip">{cases.length}</span>
-          </div>
+            {route.name === "case" && (
+              <CaseDetailPage
+                caseId={route.id}
+                cases={cases}
+                account={account}
+                pendingKeys={pendingKeys}
+                onAction={(key, label, method, args, value) =>
+                  void handleAction(key, label, method, args, value)
+                }
+              />
+            )}
 
-          <CaseList cases={cases} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
+            {route.name === "new" && (
+              <NewCase
+                account={account}
+                pending={pendingKeys.has("create-case")}
+                onCreate={handleCreate}
+              />
+            )}
 
-          <NewCaseForm
-            disabled={!account}
-            pending={pendingKeys.has("create-case")}
-            onCreate={(args, value) =>
-              handleAction("create-case", "Buat kasus", "open_case", args, value)
-            }
-          />
-        </section>
-
-        <section className="panel detail-panel">
-          {selected ? (
-            <CaseDetail
-              c={selected}
-              account={account}
-              pendingKeys={pendingKeys}
-              onAction={(key, label, method, args, value) =>
-                void handleAction(key, label, method, args, value)
-              }
-            />
-          ) : (
-            <p className="muted">Belum ada kasus.</p>
-          )}
-        </section>
+            {route.name === "transactions" && (
+              <Transactions items={items} onClear={clearHistory} />
+            )}
+          </>
+        )}
       </main>
 
-      <footer className="foot">
-        <span>Vonis · Intelligent Contract GenLayer</span>
-        <span>Data dibaca ulang setiap 15 detik.</span>
+      <footer className="site-footer">
+        <span>Vonis · GenLayer Intelligent Contract</span>
+        <span>Case data refreshes every 15 seconds.</span>
       </footer>
 
       {toast && (

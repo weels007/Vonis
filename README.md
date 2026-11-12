@@ -1,136 +1,142 @@
 # Vonis
 
-Pengadilan sengketa on-chain untuk agen otonom, dibangun sebagai Intelligent Contract GenLayer.
+On-chain dispute court for autonomous agents, built as a GenLayer Intelligent Contract.
 
-Dua agen menyepakati pekerjaan (requester dan provider). Provider mengirim bukti hasil kerja berupa
-URL. Jika requester menolak, sengketa dibuka dan **verdict** dihasilkan oleh LLM yang diminta menilai
-terhadap kriteria penerimaan, lalu **diverifikasi ulang secara independen oleh validator GenLayer**.
-Yang memindahkan uang selalu kode deterministik, bukan teks LLM.
+Two agents agree on work (requester and provider). The provider submits evidence as URLs. If the
+requester rejects the delivery, a dispute opens and a **verdict** is produced by an LLM that judges
+the evidence against the acceptance rubric — then **independently re-verified by GenLayer
+validators**. Only deterministic code moves money.
 
-Status: fondasi kontrak + test suite (Milestone 0–1). Seluruh 79 test hijau di GitHub Actions
-(unit, lint struktural, konsensus, integration, adversarial, smoke runner). Belum di-deploy.
+Status: contract foundation + test suite (Milestone 0–1). All 79 tests pass in GitHub Actions
+(unit, structural lint, consensus, integration, adversarial, runner smoke). Not deployed yet.
 
-## Kenapa GenLayer
+## Why GenLayer
 
-Sengketa "apakah hasil kerja ini memenuhi kesepakatan" tidak bisa direduksi menjadi data on-chain.
-Smart contract biasa hanya bisa mengeksekusi aturan; di sini keputusan butuh membaca bahasa dan bukti
-publik. GenLayer memberi tiga hal yang tidak dimiliki oracle atau backend terpusat:
+"Does this delivered work meet the agreement" cannot be reduced to on-chain data. A conventional
+smart contract can execute rules; this decision needs to read language and public evidence. GenLayer
+provides three things an oracle or a centralised backend cannot:
 
-- kontrak bisa mengambil bukti web sendiri (`gl.nondet.web.get`) tanpa perantara;
-- penilaian kualitatif dilakukan LLM di dalam nondeterministic block;
-- hasilnya disahkan lewat konsensus validator (Equivalence Principle) dan bisa dibanding.
+- the contract fetches evidence itself (`gl.nondet.web.get`) with no intermediary;
+- qualitative judgment runs in an LLM inside a non-deterministic block;
+- the result is accepted through validator consensus (the Equivalence Principle) and can be appealed.
 
-## Alur kasus
+## Case lifecycle
 
-- `open_case` (payable) — requester mengunci reward, menetapkan provider, URL spesifikasi, rubrik
-  penerimaan (satu kriteria per baris), dan batas waktu penyerahan.
-- `accept_case` — provider menerima penugasan.
-- `deliver_case` — provider mengirim bukti (maksimal 3 URL, dipisah newline).
-- `accept_delivery` — jalur cepat: requester menerima, reward cair penuh tanpa biaya AI.
-- `raise_dispute` — requester (dalam jendela 3 hari) atau provider (agar tidak menggantung).
-- `adjudicate` — nondeterministic block: ambil spesifikasi + bukti, minta verdict terstruktur,
-  validator menjalankan ulang dan membandingkan field keputusan.
-- `finalize_case` — setelah jendela banding 24 jam, dana dikreditkan sesuai `award_bps`.
-- `judge_rule` — hakim (alamat deployer) dapat memutus manual, termasuk untuk kasus
-  `UNVERIFIABLE` atau indikasi prompt injection.
-- `withdraw` — pihak yang berhak menarik kreditnya sendiri (pull payment).
+- `open_case` (payable) — the requester locks the reward and pins the provider, specification URL,
+  acceptance rubric (one criterion per line) and delivery deadline.
+- `accept_case` — the provider accepts the assignment.
+- `deliver_case` — the provider submits evidence (up to 3 URLs, newline separated).
+- `accept_delivery` — fast path: the requester accepts, the reward is released in full with no AI cost.
+- `raise_dispute` — the requester (within a 3-day window) or the provider (so a case cannot hang).
+- `adjudicate` — non-deterministic block: fetch specification and evidence, request a structured
+  verdict, validators re-run the task and compare the decision fields.
+- `finalize_case` — after the 24-hour appeal window, funds are credited according to `award_bps`.
+- `judge_rule` — the judge (deployer address) can rule manually, including for `UNVERIFIABLE` cases
+  or prompt-injection flags.
+- `withdraw` — each party pulls its own credit (pull payment).
 
-Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, ditambah `CANCELLED` lewat
-`cancel_case` sebelum penyerahan.
+Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, plus `CANCELLED` through
+`cancel_case` before delivery.
 
-## Struktur repo
+## Repository layout
 
-- `contracts/vonis.py` — kontrak Intelligent Contract (storage, state machine, adjudikasi, settlement).
-- `tests/` — pytest direct mode: registry, state machine, adjudikasi, konsensus validator.
-- `index.html`, `src/` — frontend Vite + React (baca/tulis kontrak, detail consensus AI).
-- `docs/ARSITEKTUR.md` — desain, invariant, strategi konsensus, keamanan, deploy, roadmap.
-- `.github/workflows/ci.yml` — test kontrak + type-check & build frontend.
+- `contracts/vonis.py` — Intelligent Contract (storage, state machine, adjudication, settlement).
+- `tests/` — pytest direct mode: registry, state machine, adjudication, validator consensus.
+- `index.html`, `src/` — Vite + React frontend (landing page, case explorer, case pages, new case,
+  transaction history).
+- `docs/ARCHITECTURE.md` — design, invariants, consensus strategy, security, deployment, roadmap.
+- `.github/workflows/ci.yml` — contract tests plus frontend type-check and build.
 
-## Menjalankan test
+## Running the tests
 
-Butuh Python 3.12+.
+Requires Python 3.12+.
 
 ```bash
 python -m pip install "genlayer-test==0.29.2" "pytest>=8"
-export GENVM_VERSION=v0.2.16   # versi SDK yang kompatibel dengan genlayer-test 0.29.2
+export GENVM_VERSION=v0.2.16   # SDK version compatible with genlayer-test 0.29.2
 pytest -q
 ```
 
-Alternatif: `python -m pip install -e ".[dev]"` (ekstra dev di `pyproject.toml`).
+Alternative: `python -m pip install -e ".[dev]"` (dev extra in `pyproject.toml`).
 
-Direct mode berjalan in-memory (milidetik), tanpa Docker maupun jaringan. Panggilan web dan LLM
-di-mock lewat `direct_vm.mock_web()` dan `direct_vm.mock_llm()`. Pada run pertama, `genlayer-test`
-mengunduh SDK yang sesuai dengan header `Depends` kontrak (butuh koneksi internet).
+Direct mode runs in memory (milliseconds) with no Docker or network. Web and LLM calls are mocked
+with `direct_vm.mock_web()` and `direct_vm.mock_llm()`. On the first run, `genlayer-test` downloads
+the SDK matching the contract's `Depends` header (internet required).
 
-`withdraw` sengaja tidak diuji di direct mode karena mode itu tidak mendukung pesan keluar;
-pembayaran diuji di Studio mode nanti. Yang diuji di sini adalah ledger kredit dan seluruh
-aritmetika settlement.
+`withdraw` is intentionally not exercised in direct mode because that mode cannot emit external
+messages; payout is covered in Studio mode later. What is tested here is the credit ledger and all
+settlement arithmetic.
 
-Jenis test:
+Test layers:
 
-- `tests/test_lint.py` — lint struktural kontrak (tanpa SDK): tipe storage, nondet hanya di blok
-  nondeterministik, `leader_fn` tanpa efek samping, field `Case` untuk frontend.
-- `tests/test_adversarial.py` — bukti berisi instruksi, award tidak konsisten, JSON rusak/berpagar,
-  verdict alias, kriteria kosong/berlebih, evidence kebesaran, kredit milik pihak lain.
-- `tests/test_integration.py` — dua kasus penuh berurutan dan invariant akuntansi.
+- `tests/test_lint.py` — structural contract lint (no SDK): storage types, `gl.nondet` only in the
+  non-deterministic block, `leader_fn` without side effects, `Case` fields the frontend reads.
+- `tests/test_adversarial.py` — instruction-bearing evidence, inconsistent awards, malformed and
+  fenced JSON, verdict aliases, empty/excess criteria, oversized evidence, other parties' credits.
+- `tests/test_integration.py` — two full sequential cases and accounting invariants.
 
 ## Frontend
 
 ```bash
 npm install
-cp .env.example .env.local   # isi VITE_CONTRACT_ADDRESS setelah deploy
+cp .env.example .env.local   # set VITE_CONTRACT_ADDRESS after deployment
 npm run dev
 ```
 
-Tanpa `VITE_CONTRACT_ADDRESS`, aplikasi berjalan di **mode demo** dengan tiga kasus contoh —
-termasuk satu putusan yang menampilkan skor, award, alasan, dan status per kriteria. Setelah kontrak
-di-deploy, isi alamatnya dan aplikasi membaca `get_case_json` setiap 15 detik.
+Without `VITE_CONTRACT_ADDRESS`, the app runs in **demo mode** with three sample cases — including a
+ruled case that shows the score, award, reasons and per-criterion results. With the address set, it
+reads `get_case_json` every 15 seconds.
 
-Fitur: daftar kasus, detail putusan AI (verdict, skor, award, kriteria + alasan), aksi sesuai peran
-(accept, kirim bukti, terima hasil, buka sengketa, minta putusan, selesaikan, batalkan), buat kasus
-baru dengan reward GEN, dan tombol klaim dana.
+Pages (hash routing, so deep links work on static hosting): landing, case explorer, case detail, new
+case, and transaction history.
 
-Lapisan transaksi:
+Features: case list, AI verdict detail (verdict, score, award, criteria + reasons), role-aware
+actions (accept, submit evidence, accept delivery, raise dispute, request verdict, settle, cancel),
+opening a case with a GEN reward, and claiming funds.
 
-- Connect wallet memakai `eth_accounts` saat load (tanpa popup) dan `eth_requestAccounts` hanya saat
-  diklik; satu promise in-flight dipakai bersama sehingga klik ganda tidak membuka dua popup.
-- Wallet yang berada di jaringan salah otomatis ditawari ganti jaringan (`wallet_switchEthereumChain`
-  dengan fallback `wallet_addEthereumChain`).
-- Setiap aksi punya kunci (`accept:case-0`, `deliver:case-0`, …) dan dikunci selama pending, jadi
-  tombol tidak bisa mengirim dua transaksi.
-- Toast membedakan sukses dan gagal, error mentah diterjemahkan ke pesan yang bisa ditindaklanjuti,
-  dan sukses menyertakan tautan detail transaksi.
-- Panel "Transaksi" menyimpan riwayat sesi (hash, metode, status, error, tautan explorer, salin hash).
-- Aksi destruktif (batalkan kasus) memakai konfirmasi dua langkah; form membuat kasus direset setelah
-  berhasil.
+Transaction layer:
 
-## Deploy (ringkas)
+- Wallet connect uses `eth_accounts` on load (no popup) and `eth_requestAccounts` only on click; a
+  single in-flight promise is shared so a double click cannot stack two popups.
+- A wallet on the wrong network is offered a switch (`wallet_switchEthereumChain`, falling back to
+  `wallet_addEthereumChain`).
+- Every action has a key (`accept:case-0`, `deliver:case-0`, …) and is locked while pending, so a
+  button cannot submit twice.
+- Toasts distinguish success and failure, raw errors are translated into actionable messages, and
+  success links to transaction details.
+- The Transactions page keeps the session history (hash, method, status, error, explorer link, copy
+  hash).
+- Destructive actions (cancel case) use two-step confirmation; the create form resets on success.
+
+## Deployment
 
 ```bash
 genlayer network set studionet
 genlayer deploy --contract contracts/vonis.py
 ```
 
-Alamat deployer menjadi hakim. Catat alamat kontrak di `.env` lalu di `docs/ARSITEKTUR.md`.
+The deployer address becomes the judge. Record the contract address in `.env` and in
+`docs/ARCHITECTURE.md`.
 
-Header `Depends` di kontrak memakai `py-genlayer:latest` agar selaras dengan tooling pengembangan
-dan CI. Sebelum deploy produksi, pin hash SDK yang dikeluarkan CLI/Studio versi yang Anda pakai
-supaya build kontrak reproducible.
-Untuk Bradbury, siapkan wallet + faucet, dan estimasi fee transaksi tulis termasuk alokasi pesan
-untuk `withdraw` (lihat dokumentasi fee v0.6 GenLayer).
+The contract's `Depends` header uses `py-genlayer:latest` so it stays aligned with the development
+tooling and CI. Before a production deployment, pin the SDK hash emitted by the CLI/Studio version
+you use so contract builds are reproducible.
 
-## Properti keamanan yang dijaga test
+For Bradbury, prepare a wallet and faucet funds, and estimate write fees including message
+allocation for `withdraw` (see the GenLayer v0.6 fee documentation).
 
-- Reward tidak bisa ditarik dua kali: status `SETTLED` menutup semua jalur pembayaran.
-- Verdict `UNVERIFIABLE` dan flag `injection_suspected` tidak pernah auto-settle; harus lewat hakim.
-- `withdraw` hanya mengirim kredit milik pemanggil, dan menolkan kredit sebelum emit (anti re-entrancy).
-- Validator menolak leader yang verdict-nya berbeda, skornya menyimpang > 15, award-nya menyimpang
-  > 1500 bps, kriteria yang berbeda, atau flag injeksi yang berbeda.
-- Bukti dibatasi 3 URL, panjang maksimum, dan hanya http/https.
+## Security properties enforced by tests
 
-## Yang belum ada
+- A reward cannot be paid twice: `SETTLED` closes every payout path.
+- `UNVERIFIABLE` verdicts and `injection_suspected` flags never auto-settle; they require the judge.
+- `withdraw` only sends the caller's credit and zeroes it before emitting (anti re-entrancy).
+- Validators reject a leader whose verdict differs, whose score deviates by more than 15, whose award
+  deviates by more than 1500 bps, whose criteria differ, or whose injection flag differs.
+- Evidence is limited to 3 URLs, bounded length, http/https only.
 
-- Event kontrak (`gl.chain.Event` + `gen_getLogs`) agar indexer tidak perlu polling; API `emit()`
-  belum terverifikasi di SDK yang dipin dan direct mode tidak mendukung pesan keluar.
-- Integrasi `emit_transfer` diuji hanya di Studio mode (direct mode tidak mendukung pesan keluar).
-- Multi-hakim/DAO, banding protokol di UI, reputasi lintas aplikasi.
+## Not built yet
+
+- Contract events (`gl.chain.Event` + `gen_getLogs`) so an indexer does not have to poll; the
+  `emit()` API is not verified on the pinned SDK and direct mode cannot emit messages.
+- `emit_transfer` integration is covered only in Studio mode (direct mode cannot emit messages).
+- Multi-judge/DAO, a protocol-appeal UI, and cross-application reputation.

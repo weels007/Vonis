@@ -22,7 +22,7 @@ export default function ConnectButton({
     <>
       {wrongChain && (
         <button className="btn warnBtn" type="button" onClick={onSwitch}>
-          Ganti ke {CHAIN.name}
+          Switch to {CHAIN.name}
         </button>
       )}
       {account ? (
@@ -31,7 +31,7 @@ export default function ConnectButton({
         </span>
       ) : (
         <button className="btn" type="button" onClick={onConnect} disabled={connecting}>
-          {connecting ? "Menghubungkan…" : "Hubungkan wallet"}
+          {connecting ? "Connecting…" : "Connect wallet"}
         </button>
       )}
     </>

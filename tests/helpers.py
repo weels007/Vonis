@@ -66,7 +66,7 @@ def verdict_json(verdict, award_bps, score=90, met=(True, True), injection=False
             "award_bps": award_bps,
             "score": score,
             "criteria": [{"id": i + 1, "met": bool(item)} for i, item in enumerate(met)],
-            "summary": "Ringkasan penilaian untuk pengujian.",
+            "summary": "Assessment summary used by the test suite.",
             "injection_suspected": injection,
         }
     )

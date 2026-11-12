@@ -12,7 +12,7 @@ export function sameAddress(a: string, b: string): boolean {
 
 export function formatDate(unixSeconds: number): string {
   if (!unixSeconds) return "—";
-  return new Date(unixSeconds * 1000).toLocaleString("id-ID", {
+  return new Date(unixSeconds * 1000).toLocaleString("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -20,20 +20,20 @@ export function formatDate(unixSeconds: number): string {
 
 export function formatGen(wei: number): string {
   const value = wei / 1e18;
-  return value.toLocaleString("id-ID", { maximumFractionDigits: 4 }) + " GEN";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 4 }) + " GEN";
 }
 
 export function percent(bps: number): string {
-  return (bps / 100).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + "%";
+  return (bps / 100).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "%";
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  OPEN: "Menunggu provider",
-  ACCEPTED: "Diterima provider",
-  DELIVERED: "Bukti dikirim",
-  DISPUTED: "Sengketa",
-  RULED: "Diputus",
-  SETTLED: "Selesai",
+  OPEN: "Awaiting provider",
+  ACCEPTED: "Accepted by provider",
+  DELIVERED: "Evidence submitted",
+  DISPUTED: "In dispute",
+  RULED: "Ruled",
+  SETTLED: "Settled",
 };
 
 export function statusLabel(status: string): string {
@@ -60,17 +60,17 @@ export function statusTone(status: string): string {
 }
 
 const VERDICT_LABELS: Record<string, string> = {
-  PROVIDER_AT_FAULT: "Provider bersalah",
-  REQUESTER_AT_FAULT: "Requester bersalah",
-  SHARED: "Sebagian",
-  UNVERIFIABLE: "Tidak dapat dinilai",
-  ACCEPTED: "Diterima requester",
-  CANCELLED: "Dibatalkan",
-  JUDGED: "Diputus hakim",
+  PROVIDER_AT_FAULT: "Provider at fault",
+  REQUESTER_AT_FAULT: "Requester at fault",
+  SHARED: "Shared fault",
+  UNVERIFIABLE: "Unverifiable",
+  ACCEPTED: "Accepted by requester",
+  CANCELLED: "Cancelled",
+  JUDGED: "Ruled by judge",
 };
 
 export function verdictLabel(verdict: string): string {
-  if (!verdict) return "Belum ada putusan";
+  if (!verdict) return "No verdict yet";
   return VERDICT_LABELS[verdict] ?? verdict;
 }
 
@@ -91,15 +91,10 @@ export function verdictTone(verdict: string): string {
   }
 }
 
-export function actionError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
 export function parseGenToWei(input: string): bigint {
   const cleaned = input.trim().replace(",", ".");
   if (!/^\d+(\.\d{0,18})?$/.test(cleaned)) {
-    throw new Error("Jumlah reward tidak valid.");
+    throw new Error("Enter a valid reward amount.");
   }
   const [whole, fraction = ""] = cleaned.split(".");
   const padded = (fraction + "0".repeat(18)).slice(0, 18);
@@ -109,7 +104,7 @@ export function parseGenToWei(input: string): bigint {
 export function deadlineToUnix(value: string): number {
   const ts = Math.floor(new Date(value).getTime() / 1000);
   if (!Number.isFinite(ts) || ts <= 0) {
-    throw new Error("Tenggat tidak valid.");
+    throw new Error("Enter a valid deadline.");
   }
   return ts;
 }
