@@ -173,13 +173,23 @@ def _criteria_count(rubric: str) -> int:
 
 def _web_text(url: str) -> str:
     response = gl.nondet.web.get(url)
-    status = int(response.status_code)
-    if status >= 400:
-        raise ValueError("[EXTERNAL] http " + str(status) + " for " + url)
 
-    body = response.body
-    if isinstance(body, bytes):
-        text = body.decode("utf-8", "replace")
+    status = None
+    for attr in ("status_code", "status", "code"):
+        value = getattr(response, attr, None)
+        if value is not None:
+            status = value
+            break
+
+    if status is not None and int(status) >= 400:
+        raise ValueError("[EXTERNAL] http " + str(int(status)) + " for " + url)
+
+    body = getattr(response, "body", None)
+    if body is None:
+        body = getattr(response, "content", b"")
+
+    if isinstance(body, (bytes, bytearray)):
+        text = bytes(body).decode("utf-8", "replace")
     else:
         text = str(body)
     return text[:MAX_SOURCE_CHARS]
