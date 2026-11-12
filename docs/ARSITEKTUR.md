@@ -326,3 +326,24 @@ sebelum diserialisasi agar aman untuk JSON. Jika kasus belum diputus, `criteria`
 
 Untuk daftar kasus, frontend masih memakai `get_case_count()` lalu `get_case_json` per id. Event
 (`gl.chain.Event`) tetap rekomendasi berikutnya agar tidak perlu polling; lihat bagian 12.
+
+
+## 16. Frontend
+
+Vite + React + TypeScript di root repo (bukan subfolder) supaya `index.html` dan `package.json`
+terdeteksi saat aplikasi dipublikasikan. Tidak ada backend, tidak ada state server: semua data
+berasal dari view kontrak.
+
+- `src/lib/genlayer.ts` — read client (tanpa wallet) dan write client (`window.ethereum`), estimasi
+  fee `estimateTransactionFeesForWrite` termasuk `messageAllocations`, lalu
+  `waitForTransactionReceipt(ACCEPTED)`.
+- `src/lib/format.ts` — label status/verdict, format GEN dan tanggal, `isFinalizable`.
+- `src/lib/demo.ts` — tiga kasus contoh agar UI bisa dilihat sebelum deploy.
+- `src/components/CaseDetail.tsx` — panel "Putusan AI consensus": verdict, skor, award, alasan,
+  dan daftar kriteria dengan `met`/`why`; aksi difilter berdasarkan peran dan status.
+- `src/components/NewCaseForm.tsx` — form `open_case` (payable) dengan validasi alamat, URL, dan
+  konversi GEN ke wei.
+
+Polling 15 detik menggantikan event. Konsekuensinya: tidak ada riwayat perubahan, dan daftar kasus
+dibatasi 50 terbaru (`case_count` lalu `get_case_json` per id). Event tetap backlog utama; begitu
+sintaks `gl.chain.Event` diverifikasi di Studionet, polling bisa diganti indexer.

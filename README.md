@@ -42,8 +42,9 @@ Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, di
 
 - `contracts/vonis.py` — kontrak Intelligent Contract (storage, state machine, adjudikasi, settlement).
 - `tests/` — pytest direct mode: registry, state machine, adjudikasi, konsensus validator.
+- `index.html`, `src/` — frontend Vite + React (baca/tulis kontrak, detail consensus AI).
 - `docs/ARSITEKTUR.md` — desain, invariant, strategi konsensus, keamanan, deploy, roadmap.
-- `.github/workflows/ci.yml` — compile kontrak + jalankan test.
+- `.github/workflows/ci.yml` — test kontrak + type-check & build frontend.
 
 ## Menjalankan test
 
@@ -73,6 +74,22 @@ Jenis test:
   verdict alias, kriteria kosong/berlebih, evidence kebesaran, kredit milik pihak lain.
 - `tests/test_integration.py` — dua kasus penuh berurutan dan invariant akuntansi.
 
+## Frontend
+
+```bash
+npm install
+cp .env.example .env.local   # isi VITE_CONTRACT_ADDRESS setelah deploy
+npm run dev
+```
+
+Tanpa `VITE_CONTRACT_ADDRESS`, aplikasi berjalan di **mode demo** dengan tiga kasus contoh —
+termasuk satu putusan yang menampilkan skor, award, alasan, dan status per kriteria. Setelah kontrak
+di-deploy, isi alamatnya dan aplikasi membaca `get_case_json` setiap 15 detik.
+
+Fitur: daftar kasus, detail putusan AI (verdict, skor, award, kriteria + alasan), aksi sesuai peran
+(accept, kirim bukti, terima hasil, buka sengketa, minta putusan, selesaikan, batalkan), buat kasus
+baru dengan reward GEN, dan tombol klaim dana.
+
 ## Deploy (ringkas)
 
 ```bash
@@ -99,7 +116,7 @@ untuk `withdraw` (lihat dokumentasi fee v0.6 GenLayer).
 
 ## Yang belum ada
 
-- Frontend dApp (Vue/React + genlayer-js), indexer daftar kasus.
-- Event kontrak (`gl.chain.Event` + `gen_getLogs`) agar indexer tidak perlu polling.
+- Event kontrak (`gl.chain.Event` + `gen_getLogs`) agar indexer tidak perlu polling; API `emit()`
+  belum terverifikasi di SDK yang dipin dan direct mode tidak mendukung pesan keluar.
 - Integrasi `emit_transfer` diuji hanya di Studio mode (direct mode tidak mendukung pesan keluar).
 - Multi-hakim/DAO, banding protokol di UI, reputasi lintas aplikasi.
