@@ -16,6 +16,7 @@ import {
 type Props = {
   c: CaseView;
   account: string;
+  judge: string;
   pendingKeys: Set<string>;
   onAction: (
     key: string,
@@ -26,13 +27,14 @@ type Props = {
   ) => void;
 };
 
-export default function CaseDetail({ c, account, pendingKeys, onAction }: Props) {
+export default function CaseDetail({ c, account, judge, pendingKeys, onAction }: Props) {
   const [evidence, setEvidence] = useState("");
   const [claim, setClaim] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   const isRequester = sameAddress(c.requester, account);
   const isProvider = sameAddress(c.provider, account);
+  const isJudge = sameAddress(judge, account);
   const settled = c.status === "SETTLED";
   const noWallet = !account;
 
@@ -42,7 +44,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
   const canDeliver = c.status === "ACCEPTED" && isProvider;
   const canAcceptDelivery = c.status === "DELIVERED" && isRequester;
   const canDispute = c.status === "DELIVERED" && (isRequester || isProvider);
-  const canAdjudicate = c.status === "DISPUTED";
+  const canAdjudicate = c.status === "DISPUTED" && (isRequester || isProvider || isJudge);
   const canFinalize = isFinalizable(c);
   const canCancel = (c.status === "OPEN" || c.status === "ACCEPTED") && isRequester;
   const hasActions =
@@ -167,6 +169,12 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
         </div>
       </section>
 
+      {c.status === "DISPUTED" && !canAdjudicate && (
+        <p className="muted">
+          Only the requester, the provider or the judge can request the AI verdict for this case.
+        </p>
+      )}
+
       {hasActions && (
         <section className="actions">
           <h3>Actions</h3>
@@ -192,6 +200,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
               <textarea
                 id={"evidence-" + c.id}
                 rows={3}
+                maxLength={900}
                 value={evidence}
                 placeholder="https://repo.example/work"
                 onChange={(event) => setEvidence(event.target.value)}

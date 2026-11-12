@@ -13,6 +13,7 @@ import {
   getCase,
   getCaseCount,
   getCreditOf,
+  getJudge,
   writeVonis,
 } from "./lib/genlayer";
 import { navigate, useRoute } from "./lib/router";
@@ -61,6 +62,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [credit, setCredit] = useState(0);
+  const [judge, setJudge] = useState("");
   const [balance, setBalance] = useState(0n);
   const [toast, setToast] = useState<TxItem | null>(null);
   const [txOpen, setTxOpen] = useState(false);
@@ -138,6 +140,17 @@ export default function App() {
       unwatch();
     };
   }, [loadWallet]);
+
+  useEffect(() => {
+    if (!IS_CONFIGURED) return;
+    void (async () => {
+      try {
+        setJudge(await getJudge());
+      } catch {
+        // The judge address only gates the adjudicate button; ignore failures.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -273,6 +286,7 @@ export default function App() {
                 caseId={route.id}
                 cases={cases}
                 account={account}
+                judge={judge}
                 pendingKeys={pendingKeys}
                 onAction={(key, label, method, args, value) =>
                   void handleAction(key, label, method, args, value)

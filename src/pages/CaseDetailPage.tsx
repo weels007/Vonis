@@ -5,6 +5,7 @@ type Props = {
   caseId: string;
   cases: CaseView[];
   account: string;
+  judge: string;
   pendingKeys: Set<string>;
   onAction: (
     key: string,
@@ -19,6 +20,7 @@ export default function CaseDetailPage({
   caseId,
   cases,
   account,
+  judge,
   pendingKeys,
   onAction,
 }: Props) {
@@ -41,6 +43,7 @@ export default function CaseDetailPage({
           <CaseDetail
             c={item}
             account={account}
+            judge={judge}
             pendingKeys={pendingKeys}
             onAction={onAction}
           />

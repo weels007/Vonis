@@ -51,6 +51,16 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
         throw new Error("Title is required.");
       }
 
+      const criteria = rubric
+        .split("\n")
+        .filter((line) => line.trim().length > 0);
+      if (criteria.length === 0) {
+        throw new Error("Add at least one rubric criterion.");
+      }
+      if (criteria.length > 8) {
+        throw new Error("Use at most 8 rubric criteria.");
+      }
+
       const value = parseGenToWei(reward);
       const ok = await onCreate(
         [
@@ -96,6 +106,7 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
           id="title"
           value={title}
           placeholder="Landing page build"
+          maxLength={140}
           onChange={(event) => setTitle(event.target.value)}
         />
       </div>
@@ -106,6 +117,7 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
           id="spec-url"
           value={specUrl}
           placeholder="https://…"
+          maxLength={500}
           onChange={(event) => setSpecUrl(event.target.value)}
         />
       </div>
@@ -115,6 +127,7 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
         <textarea
           id="rubric"
           rows={4}
+          maxLength={3000}
           value={rubric}
           onChange={(event) => setRubric(event.target.value)}
         />
