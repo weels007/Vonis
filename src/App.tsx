@@ -13,7 +13,6 @@ import {
   CONTRACT_ADDRESS,
   IS_CONFIGURED,
   NETWORK_LABEL,
-  connectWallet,
   explorerAddress,
   getCase,
   getCaseCount,
@@ -23,6 +22,7 @@ import {
 import { formatGen, shortAddress } from "./lib/format";
 import type { CaseView } from "./lib/types";
 import {
+  connectWallet,
   currentChainId,
   ensureNetwork,
   getBalanceWei,
