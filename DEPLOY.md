@@ -88,3 +88,77 @@ If you want a CI deploy, do not commit the keystore. Put it and its password in 
 secrets and decrypt it inside a small Node script using `viem`'s keystore helpers, then call
 `genlayer-js` `deployContract`. That script does not exist yet; ask before adding it, because it
 means giving CI the deployer key.
+
+
+## If you want the key in GitHub Actions secrets
+
+Two patterns. Pick one deliberately.
+
+### Pattern A — secret-free CI (recommended)
+
+The contract is immutable and deployed once, so CI does not need the deployer key at all.
+
+1. Deploy from your machine with sections 1–2 above.
+2. Store only the **public contract address**:
+   - Settings → Secrets and variables → Actions → **Variables** → `VITE_CONTRACT_ADDRESS`.
+   - Optionally commit it as a fallback in `src/lib/genlayer.ts` so published previews connect
+     without local env files.
+3. The deployer key never enters CI, so a compromised workflow cannot drain or redeploy anything.
+
+This is the safer default: a leaked deployer key is a permanent impersonation of the judge, while a
+leaked contract address is public information.
+
+### Pattern B — CI deploy with environment protection
+
+Use this only if you need repeatable deploys from CI.
+
+Create an environment named `studionet` (Settings → Environments) with **required reviewers**, then
+add these **secrets** to that environment (not to the whole repository):
+
+- `VONIS_KEYSTORE_JSON` — the entire keystore JSON on one line
+- `VONIS_KEYSTORE_PASSWORD` — the keystore password
+
+Workflow outline:
+
+```yaml
+name: deploy-studionet
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: studionet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - name: Deploy contract
+        env:
+          KEYSTORE_JSON: ${{ secrets.VONIS_KEYSTORE_JSON }}
+          KEYSTORE_PASSWORD: ${{ secrets.VONIS_KEYSTORE_PASSWORD }}
+        run: node scripts/deploy.mjs
+```
+
+`scripts/deploy.mjs` would decrypt the keystore in memory (`ethers` `Wallet.fromEncryptedJson`),
+build an account with `createAccount(wallet.privateKey)`, call
+`createClient({ chain: studionet, account }).deployContract({ code })`, wait for `ACCEPTED`, and
+print the receipt. That script is **not committed yet**: it needs a dependency (`ethers`), and the
+exact field that carries the new contract address in the receipt has to be verified against a real
+deploy before it can be trusted in automation.
+
+Cautions for Pattern B:
+
+- **Never** run it on `pull_request`. Fork PRs cannot read secrets anyway, and a same-repo PR could
+  alter the deploy script and exfiltrate the key.
+- Use `workflow_dispatch` plus a protected environment with required reviewers, and restrict who can
+  push to `main`.
+- Do not `echo` secrets, do not enable `set -x`, write the keystore to `$RUNNER_TEMP` and delete it
+  afterwards.
+- The GenLayer **CLI** stores imported keys in the OS keychain (`keytar`), which is unreliable on
+  headless runners; prefer the `genlayer-js` path above.
+- A key that has ever been committed is burned. Rotate both test accounts before relying on this,
+  and never use these accounts on a network where GEN has value.
