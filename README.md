@@ -125,6 +125,9 @@ you use so contract builds are reproducible.
 For Bradbury, prepare a wallet and faucet funds, and estimate write fees including message
 allocation for `withdraw` (see the GenLayer v0.6 fee documentation).
 
+For a step-by-step deploy with the project's Studio test wallets (keystore import, schema check,
+smoke case), see [DEPLOY.md](DEPLOY.md).
+
 ## Security properties enforced by tests
 
 - A reward cannot be paid twice: `SETTLED` closes every payout path.

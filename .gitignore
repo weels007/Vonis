@@ -18,6 +18,11 @@ dist/
 .env.*
 !.env.example
 
+# Wallet material must never enter this repository
+*.password
+*keystore*.json
+wallet/
+
 # Editor / OS
 .DS_Store
 .idea/
