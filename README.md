@@ -128,8 +128,9 @@ release the node runs. `py-genlayer:latest` is not deployable: it resolves to th
 which nodes reject outside debug mode (`invalid_contract`), so direct-mode tests can use it while a
 Studionet deploy cannot. `scripts/runner-hash.py` prints the runner hashes a GenVM release ships.
 
-For Bradbury, prepare a wallet and faucet funds, and estimate write fees including message
-allocation for `withdraw` (see the GenLayer v0.6 fee documentation).
+Studionet is the testnet this project uses, so the public demo needs nothing else. Only if a
+persistent network is ever needed (Bradbury, chain id 4221), prepare a funded wallet and estimate
+write fees including `messageAllocations` for `withdraw` (see the GenLayer v0.6 fee documentation).
 
 For a step-by-step deploy with the project's Studio test wallets (keystore import, schema check,
 smoke case), see [DEPLOY.md](DEPLOY.md).
