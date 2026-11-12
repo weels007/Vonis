@@ -84,7 +84,7 @@ npm run dev
 ```
 
 The contract address is hard-set in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`), not read from the
-environment: `0xBc079ed3e1354D175E172175E475d782BF82C1aA`, from the latest `studionet` run. Replace
+environment: `0x81eC9A03095F7F0480CE4dABFd84DeDca932A870`, from the latest `studionet` run. Replace
 that line after a deployment; if it holds an invalid value the app falls back to **demo mode** with
 three sample cases — including a ruled case that shows the score, award, reasons and per-criterion
 results. With a valid address it reads `get_case_json` every 15 seconds.
