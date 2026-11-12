@@ -206,14 +206,61 @@ ekonomi signifikan.
 - **Verifikasi tipe kecil** (`u8`/`u16`) sengaja dihindari; kontrak memakai `u256`/`i32`.
 - **API event** (`gl.chain.Event`) belum dipakai; perlu diverifikasi sebelum menambah event.
 
-## 12. Roadmap
+## 12. Audit fitur GenLayer
+
+Ditinjau terhadap seluruh kemampuan yang didokumentasikan GenLayer, dengan kriteria: apakah
+menambah kebenaran keputusan, keamanan dana, atau kelayakan produk.
+
+**Sudah dipakai**
+
+- Nondeterministic block + `gl.vm.run_nondet` dengan validator kustom dan toleransi eksplisit.
+- Web access (`gl.nondet.web.get`) dengan pemotongan konten dan penanganan status lintas layout SDK.
+- LLM terstruktur (`exec_prompt(..., response_format="json")`) dengan normalisasi defensif.
+- Value transfers: `@gl.public.write.payable`, pull payment, external message `emit_transfer`.
+- Storage datar (`TreeMap` + `@allow_storage` dataclass), angka berukuran (`u256`, `i32`).
+- Transaction context: `sender_address`, `origin_address` (dicatat per kasus), timestamp transaksi.
+- Special method `__receive__` untuk menolak transfer liar yang tidak punya pemilik.
+- Testing direct mode dengan `mock_web`/`mock_llm` + `run_validator`, dijalankan di CI.
+
+**Layak ditambah, berurutan prioritas**
+
+1. **Events (`gl.chain.Event` → `gen_getLogs`)** — prioritas tertinggi untuk produk, bukan untuk
+   logika. Tanpa event, frontend/indexer harus mem-poll `case_count` dan setiap `get_case_*`.
+   Ditunda karena sintaks `emit` belum terverifikasi pada SDK yang dipin; verifikasi di Studionet,
+   lalu pancarkan event untuk `CaseOpened`, `CaseAccepted`, `EvidenceSubmitted`, `CaseRuled`,
+   `CaseSettled`, `Withdrawn`.
+2. **`render(url, mode="text")` untuk halaman bukti** — mengurangi noise HTML (token + permukaan
+   prompt injection). Trade-off: `render` tidak memberi status code, jadi `get` tetap dipakai untuk
+   spesifikasi yang butuh deteksi 4xx/5xx. Bisa diterapkan per-URL.
+3. **Bukti visual** — `render(url, mode="screenshot")` + `exec_prompt(..., images=[...])` (maks 2
+   gambar) untuk deliverable desain/landing page. Ini kemampuan yang benar-benar khas GenLayer,
+   tapi biayanya tinggi: jadikan flag opsional per kasus dan batasi 1 gambar.
+4. **Vector store untuk preseden** — cari kasus serupa dan sertakan ringkasannya sebagai konteks,
+   supaya keputusan lebih konsisten. Perlu keputusan tentang biaya embedding dan determinisme.
+5. **Comparator error `run_nondet`** — saat ini validator memperlakukan leader error sebagai
+   `False` (rotasi). Untuk kegagalan web transien, kedua node yang gagal bersamaan sebenarnya boleh
+   sepakat gagal. `run_nondet` menerima `compare_user_errors`/`compare_vm_errors`; API-nya belum
+   diverifikasi, jadi belum dipakai.
+6. **Baca EVM (ERC-8004 registry agen)** — reputasi lintas aplikasi lewat `@gl.evm.contract_interface`
+   `.view()`. Fase 2, setelah ada registry yang stabil.
+
+**Sengaja tidak dipakai**
+
+- `strict_eq` untuk verdict: output LLM tidak akan pernah identik.
+- Kontrak anak per kasus (`gl.deploy_contract`): biaya deployment tidak sepadan.
+- `__handle_undefined_method__`: panggilan tak dikenal sebaiknya gagal, bukan ditangani diam-diam.
+- Upgradability: kontrak sengaja immutable. Bila nanti butuh jalur perbaikan, itu keputusan produk
+  yang menambah asumsi kepercayaan (siapa yang boleh meng-upgrade) dan harus dibahas terpisah.
+
+## 13. Roadmap
 
 - M1: frontend baca/tulis (genlayer-js), halaman kasus, estimasi fee, tampilan verdict per kriteria.
 - M2: Studio-mode test suite + kalibrasi prompt/agreement rate.
 - M3: deploy Studionet → Bradbury, ukur biaya dan latensi, dokumentasikan.
 - M4: reputasi lintas aplikasi, daftar agen, template rubrik, multi-hakim.
 
-## 13. Catatan kompatibilitas SDK (diverifikasi lewat CI)
+
+## 14. Catatan kompatibilitas SDK (diverifikasi lewat CI)
 
 Test direct mode dijalankan dengan `genlayer-test==0.29.2` dan `GENVM_VERSION=v0.2.16` (versi
 fallback yang dipakai tool itu sendiri). Beberapa perilaku SDK yang berbeda dari asumsi awal, dan

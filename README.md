@@ -92,5 +92,6 @@ untuk `withdraw` (lihat dokumentasi fee v0.6 GenLayer).
 ## Yang belum ada
 
 - Frontend dApp (Vue/React + genlayer-js), indexer daftar kasus.
+- Event kontrak (`gl.chain.Event` + `gen_getLogs`) agar indexer tidak perlu polling.
 - Integrasi `emit_transfer` diuji hanya di Studio mode (direct mode tidak mendukung pesan keluar).
 - Multi-hakim/DAO, banding protokol di UI, reputasi lintas aplikasi.

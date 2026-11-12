@@ -75,6 +75,29 @@ def test_open_case_rejects_non_http_spec_url(court, direct_vm, alice, bob):
     direct_vm.value = 0
 
 
+def test_case_records_origin_address(court, direct_vm, alice, bob, carol):
+    register_provider(court, direct_vm, bob)
+
+    # Simulate an agent framework calling on behalf of the requester.
+    direct_vm.origin = carol
+    case_id = open_case(court, direct_vm, alice, bob)
+
+    origin = court.get_case_origin(case_id)
+    requester_hex = court.get_case_parties(case_id).split("|")[0]
+
+    assert origin != ""
+    assert origin == court.get_case_origin(case_id)
+    assert origin != requester_hex
+
+
+def test_stray_value_is_rejected(court, direct_vm, carol):
+    direct_vm.sender = carol
+    direct_vm.value = 500
+    with direct_vm.expect_revert("use open_case or deposit_stake"):
+        court.__receive__()
+    direct_vm.value = 0
+
+
 def test_accept_case_only_by_provider(court, direct_vm, alice, bob):
     register_provider(court, direct_vm, bob)
     case_id = open_case(court, direct_vm, alice, bob)

@@ -79,6 +79,7 @@ class Agent:
 class Case:
     requester: Address
     provider: Address
+    origin: Address
     title: str
     spec_url: str
     rubric: str
@@ -533,6 +534,12 @@ class Vonis(gl.Contract):
         self.credits_total = self.credits_total - amount
         _Payout(who).emit_transfer(value=amount)
 
+    @gl.public.write.payable
+    def __receive__(self) -> None:
+        # Value must enter through open_case (escrow) or deposit_stake, so a
+        # bare transfer would otherwise sit in the contract with no owner.
+        raise ValueError("use open_case or deposit_stake")
+
     # -- case lifecycle -----------------------------------------------------
 
     @gl.public.write.payable
@@ -564,6 +571,7 @@ class Vonis(gl.Contract):
         self.cases[case_id] = Case(
             requester=requester,
             provider=provider,
+            origin=gl.message.origin_address,
             title=title,
             spec_url=spec_url,
             rubric=rubric,
@@ -771,6 +779,10 @@ class Vonis(gl.Contract):
     def get_case_parties(self, case_id: str) -> str:
         case = self._case(case_id)
         return _addr_hex(case.requester) + "|" + _addr_hex(case.provider)
+
+    @gl.public.view
+    def get_case_origin(self, case_id: str) -> str:
+        return _addr_hex(self._case(case_id).origin)
 
     @gl.public.view
     def get_case_deadlines(self, case_id: str) -> str:
