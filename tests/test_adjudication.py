@@ -3,6 +3,7 @@
 import json
 
 from tests.helpers import (
+    CLAIM,
     REWARD,
     VERDICT_PROVIDER,
     VERDICT_REQUESTER,
@@ -214,3 +215,54 @@ def test_brief_http_error_is_classified_as_external(court, direct_vm, alice, bob
     direct_vm.sender = alice
     with direct_vm.expect_revert("[EXTERNAL]"):
         court.adjudicate(case_id)
+
+
+
+def test_case_json_exposes_consensus_detail(court, direct_vm, alice, bob):
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_PROVIDER, 2000, score=40, met=(True, False)
+    )
+
+    data = json.loads(court.get_case_json(case_id))
+
+    assert data["id"] == case_id
+    assert data["status"] == "RULED"
+    assert data["verdict"] == VERDICT_PROVIDER
+    assert data["score"] == 40
+    assert data["award_bps"] == 2000
+    assert data["reasons"] != ""
+    assert data["claim"] == CLAIM
+    assert data["requester"] != ""
+    assert data["provider"] != ""
+    assert len(data["criteria"]) == 2
+    assert data["criteria"][0]["met"] is True
+    assert data["criteria"][1]["met"] is False
+    assert "why" in data["criteria"][0]
+    assert data["submitted_ts"] > 0
+    assert data["adjudicated_ts"] >= data["submitted_ts"]
+
+
+def test_read_views_expose_claim_criteria_and_timeline(court, direct_vm, alice, bob):
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_REQUESTER, 10000, score=95
+    )
+
+    assert court.get_case_claim(case_id) == CLAIM
+
+    criteria = json.loads(court.get_case_criteria(case_id))
+    assert len(criteria) == 2
+    assert criteria[0]["id"] == 1
+
+    timestamps = court.get_case_timestamps(case_id).split("|")
+    assert len(timestamps) == 3
+    assert int(timestamps[0]) > 0
+    assert int(timestamps[1]) >= int(timestamps[0])
+    assert int(timestamps[2]) == 0
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    court.finalize_case(case_id)
+
+    settled = json.loads(court.get_case_json(case_id))
+    assert settled["status"] == "SETTLED"
+    assert settled["credit_provider"] == REWARD
+    assert settled["settled_ts"] > 0

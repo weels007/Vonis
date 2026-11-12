@@ -275,3 +275,43 @@ sudah disesuaikan di kontrak:
 - `gl.vm.run_nondet` (bukan `run_nondet_unsafe`) dipakai karena test runner direct mode mem-patch
   fungsi itu.
 
+
+
+## 15. Read surface untuk frontend
+
+Kontrak menyediakan dua lapis baca: view bertipe untuk komponen kecil, dan satu view JSON untuk
+kartu detail kasus (termasuk hasil consensus AI).
+
+**View per field**
+
+- `get_case_count()`, `get_case_status()`, `get_case_verdict()`, `get_case_award_bps()`,
+  `get_case_score()`, `get_case_reasons()`.
+- `get_case_claim()`, `get_case_criteria()`, `get_case_judge_note()`.
+- `get_case_evidence()`, `get_case_rubric()` — konten mentah untuk auditor.
+- `get_case_parties()`, `get_case_origin()`, `get_case_deadlines()`, `get_case_timestamps()`
+  (`submitted|adjudicated|settled`, Unix detik).
+- `get_case_payouts()` — `credit_provider|credit_requester|slashed`.
+- `get_credit_of(addr)`, `get_agent_handle/score/stake/active_cases/stats`, `get_escrow_total()`,
+  `get_stakes_total()`, `get_credits_total()`.
+
+**`get_case_json(case_id)` — satu panggilan untuk kartu detail**
+
+Mengembalikan string JSON dengan field: `id`, `title`, `status`, `verdict`, `award_bps`, `score`,
+`reasons`, `claim`, `criteria`, `reward`, `credit_provider`, `credit_requester`, `slashed`, `judged`,
+`judge_note`, `requester`, `provider`, `origin`, `delivery_deadline`, `dispute_deadline`,
+`appeal_deadline`, `submitted_ts`, `adjudicated_ts`, `settled_ts`.
+
+`criteria` berbentuk array `{"id": 1, "met": true, "why": "..."}` — inilah bagian yang dibaca
+pengguna sebagai "detail consensus AI": kriteria mana yang terpenuhi, mana yang tidak, dan alasan
+singkat per kriteria (`why`, maksimal 160 karakter). `reasons` adalah ringkasan keseluruhan
+(maksimal 600 karakter). `verdict` + `score` + `award_bps` memberi kesimpulan dan konsekuensi
+ekonomi. Rubrik tidak diduplikasi di JSON ini (ambil lewat `get_case_rubric`) agar payload tetap
+ringan.
+
+Catatan implementasi: `criteria_report` disimpan sebagai JSON string saat `adjudicate` (maksimal
+1200 karakter) dan di-parse kembali oleh view. Semua angka `u256`/`i32` dikonversi ke integer
+sebelum diserialisasi agar aman untuk JSON. Jika kasus belum diputus, `criteria` kosong dan
+`verdict` kosong.
+
+Untuk daftar kasus, frontend masih memakai `get_case_count()` lalu `get_case_json` per id. Event
+(`gl.chain.Event`) tetap rekomendasi berikutnya agar tidak perlu polling; lihat bagian 12.

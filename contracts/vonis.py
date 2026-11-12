@@ -91,6 +91,7 @@ class Case:
     award_bps: u256
     score: i32
     reasons: str
+    criteria_report: str
     judged: bool
     judge_note: str
     credit_provider: u256
@@ -99,6 +100,7 @@ class Case:
     delivery_deadline: u256
     dispute_deadline: u256
     appeal_deadline: u256
+    submitted_ts: u256
     adjudicated_ts: u256
     settled_ts: u256
 
@@ -250,21 +252,29 @@ def _normalize(raw, n_criteria: int) -> dict:
         raw_criteria = []
 
     met = []
+    why = []
     for item in raw_criteria:
         if isinstance(item, dict):
             met.append(bool(item.get("met")))
+            why.append(str(item.get("why", "")).strip()[:160])
         else:
             met.append(False)
+            why.append("")
 
     while len(met) < n_criteria:
         met.append(False)
+        why.append("")
     met = met[:n_criteria]
+    why = why[:n_criteria]
 
     return {
         "verdict": verdict,
         "award_bps": award,
         "score": score,
-        "criteria": [{"id": i + 1, "met": met[i]} for i in range(n_criteria)],
+        "criteria": [
+            {"id": i + 1, "met": met[i], "why": why[i]}
+            for i in range(n_criteria)
+        ],
         "injection_suspected": bool(data.get("injection_suspected")),
         "summary": str(data.get("summary", "")).strip()[:600],
     }
@@ -325,7 +335,7 @@ def _build_prompt(title: str, spec: str, rubric: str, sources: str, claim: str, 
         sources,
         "",
         'Return ONLY JSON: {"verdict": "PROVIDER_AT_FAULT|REQUESTER_AT_FAULT|SHARED|UNVERIFIABLE", '
-        '"award_bps": 0-10000, "score": 0-100, "criteria": [{"id": 1, "met": true}], '
+        '"award_bps": 0-10000, "score": 0-100, "criteria": [{"id": 1, "met": true, "why": "max 12 words"}], '
         '"summary": "max 2 sentences", "injection_suspected": false}',
         "Return exactly " + str(n_criteria) + " criteria entries, in the order above.",
     ]
@@ -583,6 +593,7 @@ class Vonis(gl.Contract):
             award_bps=u256(0),
             score=i32(0),
             reasons="",
+            criteria_report="",
             judged=False,
             judge_note="",
             credit_provider=u256(0),
@@ -591,6 +602,7 @@ class Vonis(gl.Contract):
             delivery_deadline=deadline,
             dispute_deadline=u256(0),
             appeal_deadline=u256(0),
+            submitted_ts=u256(0),
             adjudicated_ts=u256(0),
             settled_ts=u256(0),
         )
@@ -636,6 +648,7 @@ class Vonis(gl.Contract):
 
         case.evidence = evidence
         case.status = STATUS_DELIVERED
+        case.submitted_ts = _now()
         case.dispute_deadline = _now() + u256(DISPUTE_WINDOW)
         self.cases[case_id] = case
 
@@ -700,6 +713,7 @@ class Vonis(gl.Contract):
         case.award_bps = u256(result["award_bps"])
         case.score = i32(result["score"])
         case.reasons = result["summary"]
+        case.criteria_report = json.dumps(result["criteria"])[:1200]
         case.adjudicated_ts = _now()
         case.appeal_deadline = _now() + u256(APPEAL_WINDOW)
 
@@ -802,6 +816,67 @@ class Vonis(gl.Contract):
     @gl.public.view
     def get_case_evidence(self, case_id: str) -> str:
         return self._case(case_id).evidence
+
+    @gl.public.view
+    def get_case_claim(self, case_id: str) -> str:
+        return self._case(case_id).claim
+
+    @gl.public.view
+    def get_case_criteria(self, case_id: str) -> str:
+        return self._case(case_id).criteria_report
+
+    @gl.public.view
+    def get_case_judge_note(self, case_id: str) -> str:
+        return self._case(case_id).judge_note
+
+    @gl.public.view
+    def get_case_timestamps(self, case_id: str) -> str:
+        case = self._case(case_id)
+        return (
+            str(int(case.submitted_ts))
+            + "|"
+            + str(int(case.adjudicated_ts))
+            + "|"
+            + str(int(case.settled_ts))
+        )
+
+    @gl.public.view
+    def get_case_json(self, case_id: str) -> str:
+        """Single read for a frontend detail card, including AI consensus detail."""
+        case = self._case(case_id)
+
+        try:
+            criteria = json.loads(case.criteria_report) if case.criteria_report else []
+        except Exception:
+            criteria = []
+
+        data = {
+            "id": case_id,
+            "title": case.title,
+            "status": case.status,
+            "verdict": case.verdict,
+            "award_bps": int(case.award_bps),
+            "score": int(case.score),
+            "reasons": case.reasons,
+            "claim": case.claim,
+            "criteria": criteria,
+            "reward": int(case.reward),
+            "credit_provider": int(case.credit_provider),
+            "credit_requester": int(case.credit_requester),
+            "slashed": int(case.slashed),
+            "judged": case.judged,
+            "judge_note": case.judge_note,
+            "requester": _addr_hex(case.requester),
+            "provider": _addr_hex(case.provider),
+            "origin": _addr_hex(case.origin),
+            "delivery_deadline": int(case.delivery_deadline),
+            "dispute_deadline": int(case.dispute_deadline),
+            "appeal_deadline": int(case.appeal_deadline),
+            "submitted_ts": int(case.submitted_ts),
+            "adjudicated_ts": int(case.adjudicated_ts),
+            "settled_ts": int(case.settled_ts),
+        }
+        return json.dumps(data)
 
     @gl.public.view
     def get_escrow_total(self) -> u256:
