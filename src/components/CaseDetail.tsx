@@ -38,6 +38,26 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
 
   const pending = (key: string) => pendingKeys.has(key);
 
+  const canAccept = c.status === "OPEN" && isProvider;
+  const canDeliver = c.status === "ACCEPTED" && isProvider;
+  const canAcceptDelivery = c.status === "DELIVERED" && isRequester;
+  const canDispute = c.status === "DELIVERED" && (isRequester || isProvider);
+  const canAdjudicate = c.status === "DISPUTED";
+  const canFinalize = isFinalizable(c);
+  const canCancel = (c.status === "OPEN" || c.status === "ACCEPTED") && isRequester;
+  const hasActions =
+    canAccept ||
+    canDeliver ||
+    canAcceptDelivery ||
+    canDispute ||
+    canAdjudicate ||
+    canFinalize ||
+    canCancel;
+
+  const hasVerdict = !!c.verdict;
+  const scoreColor =
+    c.score >= 70 ? "var(--ok)" : c.score >= 40 ? "var(--warn)" : "var(--danger)";
+
   const acceptKey = "accept:" + c.id;
   const deliverKey = "deliver:" + c.id;
   const acceptDeliveryKey = "accept-delivery:" + c.id;
@@ -56,46 +76,57 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
         <span className={"chip " + statusTone(c.status)}>{statusLabel(c.status)}</span>
       </div>
 
-      <section className="verdict-card">
-        <div className="verdict-top">
-          <div>
-            <span className="eyebrow">Putusan AI consensus</span>
-            <h3 className={"chip " + (c.verdict ? verdictTone(c.verdict) : "muted")}>
-              {verdictLabel(c.verdict)}
-            </h3>
-          </div>
-          <div className="score">
-            <strong>{c.score}</strong>
-            <span>/100</span>
-          </div>
-        </div>
+      <section className={"verdict-card" + (hasVerdict ? "" : " empty-verdict")}>
+        {hasVerdict ? (
+          <>
+            <div className="verdict-top">
+              <div>
+                <span className="eyebrow">Putusan AI consensus</span>
+                <h3 className={"chip " + verdictTone(c.verdict)}>{verdictLabel(c.verdict)}</h3>
+              </div>
+              <div className="score">
+                <strong>{c.score}</strong>
+                <span>/100</span>
+              </div>
+            </div>
 
-        <div className="bar">
-          <div style={{ width: Math.max(0, Math.min(100, c.score)) + "%" }} />
-        </div>
+            <div className="bar">
+              <div
+                style={{
+                  width: Math.max(0, Math.min(100, c.score)) + "%",
+                  background: scoreColor,
+                }}
+              />
+            </div>
 
-        <p className="muted">
-          Award {percent(c.award_bps)} dari {formatGen(c.reward)} · dinilai{" "}
-          {formatDate(c.adjudicated_ts)}
-        </p>
+            <p className="muted">
+              Award {percent(c.award_bps)} dari {formatGen(c.reward)} · dinilai{" "}
+              {formatDate(c.adjudicated_ts)}
+            </p>
 
-        {c.reasons ? <p className="reasons">{c.reasons}</p> : null}
+            {c.reasons ? <p className="reasons">{c.reasons}</p> : null}
 
-        {c.criteria.length > 0 && (
-          <ul className="criteria">
-            {c.criteria.map((item) => (
-              <li key={item.id} className={item.met ? "ok" : "no"}>
-                <span className="crit-icon">{item.met ? "✓" : "✕"}</span>
-                <div>
-                  <strong>Kriteria {item.id}</strong>
-                  <em>{item.why || (item.met ? "Terpenuhi." : "Tidak terpenuhi.")}</em>
-                </div>
-              </li>
-            ))}
-          </ul>
+            {c.criteria.length > 0 && (
+              <ul className="criteria">
+                {c.criteria.map((item) => (
+                  <li key={item.id} className={item.met ? "ok" : "no"}>
+                    <span className="crit-icon">{item.met ? "✓" : "✕"}</span>
+                    <div>
+                      <strong>Kriteria {item.id}</strong>
+                      <em>{item.why || (item.met ? "Terpenuhi." : "Tidak terpenuhi.")}</em>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {c.judge_note ? <p className="muted">Catatan hakim: {c.judge_note}</p> : null}
+          </>
+        ) : (
+          <p className="muted">
+            Belum ada putusan AI. Putusan muncul setelah sengketa diadili.
+          </p>
         )}
-
-        {c.judge_note ? <p className="muted">Catatan hakim: {c.judge_note}</p> : null}
       </section>
 
       {c.claim ? (
@@ -136,11 +167,12 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
         </div>
       </section>
 
-      <section className="actions">
-        <h3>Aksi</h3>
-        {noWallet && <p className="muted">Hubungkan wallet untuk mengirim transaksi.</p>}
+      {hasActions && (
+        <section className="actions">
+          <h3>Aksi</h3>
+          {noWallet && <p className="muted">Hubungkan wallet untuk mengirim transaksi.</p>}
 
-        {c.status === "OPEN" && isProvider && (
+          {canAccept && (
           <button
             type="button"
             disabled={noWallet || pending(acceptKey)}
@@ -152,7 +184,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </button>
         )}
 
-        {c.status === "ACCEPTED" && isProvider && (
+        {canDeliver && (
           <div className="field">
             <label htmlFor={"evidence-" + c.id}>Bukti (URL, satu per baris, maksimal 3)</label>
             <textarea
@@ -177,7 +209,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </div>
         )}
 
-        {c.status === "DELIVERED" && isRequester && (
+        {canAcceptDelivery && (
           <button
             type="button"
             disabled={noWallet || pending(acceptDeliveryKey)}
@@ -191,7 +223,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </button>
         )}
 
-        {c.status === "DELIVERED" && (isRequester || isProvider) && (
+        {canDispute && (
           <div className="field">
             <label htmlFor={"claim-" + c.id}>Alasan sengketa</label>
             <textarea
@@ -216,7 +248,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </div>
         )}
 
-        {c.status === "DISPUTED" && (
+        {canAdjudicate && (
           <button
             type="button"
             disabled={noWallet || pending(adjudicateKey)}
@@ -228,7 +260,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </button>
         )}
 
-        {isFinalizable(c) && (
+        {canFinalize && (
           <button
             type="button"
             disabled={noWallet || pending(finalizeKey)}
@@ -240,7 +272,7 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
           </button>
         )}
 
-        {(c.status === "OPEN" || c.status === "ACCEPTED") && isRequester && (
+        {canCancel && (
           <>
             {!confirmCancel ? (
               <button
@@ -273,7 +305,8 @@ export default function CaseDetail({ c, account, pendingKeys, onAction }: Props)
             )}
           </>
         )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

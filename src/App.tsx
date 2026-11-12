@@ -247,7 +247,7 @@ export default function App() {
           <span className="chip">{NETWORK_LABEL}</span>
           {IS_CONFIGURED ? (
             <a
-              className="chip link"
+              className="chip"
               href={explorerAddress(CONTRACT_ADDRESS)}
               target="_blank"
               rel="noreferrer"
