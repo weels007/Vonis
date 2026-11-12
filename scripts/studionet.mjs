@@ -50,7 +50,9 @@ function summary() {
     ...results.map(
       (item) =>
         `| ${item.label} | ${item.ok === true ? "pass" : item.ok === false ? "FAIL" : "skip"} | ${
-          (item.detail || "").replace(/\|/g, "\\|").slice(0, 160)
+          (item.detail || "")
+            .replace(/\|/g, "\\|")
+            .slice(0, item.ok === false ? 500 : 160)
         } |`
     ),
   ];
@@ -105,6 +107,29 @@ async function readWithRetry(client, address, functionName, args = [], attempts 
   throw lastError;
 }
 
+function leaderReceipt(tx) {
+  return tx?.consensus_data?.leader_receipt?.[0] ?? null;
+}
+
+function leaderDetail(leader) {
+  if (!leader) return "no leader receipt";
+  const genvm = leader.genvm_result ?? {};
+  const texts = {
+    error: leader.error ?? genvm.error,
+    stderr: genvm.stderr,
+    stdout: genvm.stdout,
+    result: typeof leader.result === "string" ? leader.result : undefined,
+  };
+  const parts = [];
+  for (const [key, value] of Object.entries(texts)) {
+    if (value === undefined || value === null) continue;
+    const text = String(value).replace(/\s+/g, " ").trim();
+    if (text) parts.push(`${key}=${text.slice(0, 400)}`);
+  }
+  if (parts.length === 0) parts.push(`keys=${Object.keys(leader).join(",")}`);
+  return parts.join(" ");
+}
+
 async function wait(client, hash, label) {
   const receipt = await client.waitForTransactionReceipt({
     hash,
@@ -113,25 +138,28 @@ async function wait(client, hash, label) {
     retries: 120,
   });
   const full = await client.getTransaction({ hash });
+  const status = String(full?.statusName ?? receipt?.statusName ?? "UNKNOWN");
   const execution = String(
     full?.txExecutionResultName ?? receipt?.txExecutionResultName ?? "UNKNOWN"
   );
-  const status = String(full?.statusName ?? receipt?.statusName ?? "UNKNOWN");
-  if (execution === "FINISHED_WITH_RETURN") return { receipt, full };
-  if (execution === "UNKNOWN") {
-    // Older nodes do not report the execution result; do not fail on that,
-    // the follow-up read proves whether the state changed.
-    log(`WARN ${label}: ${status}, execution result not reported`);
+  const leader = leaderReceipt(full ?? receipt);
+  // Newer nodes leave txExecutionResult empty; the leader vote carries it.
+  const leaderExecution = String(leader?.execution_result ?? "").toUpperCase();
+  if (execution === "FINISHED_WITH_RETURN" || leaderExecution === "SUCCESS") {
     return { receipt, full };
   }
-  const leader =
-    full?.consensus_data?.leader_receipt?.[0] ??
-    receipt?.consensus_data?.leader_receipt?.[0] ??
-    null;
-  const detail = leader?.error ? String(leader.error) : String(leader?.result ?? "");
-  throw new Error(
-    `${label}: ${status} ${execution}${detail ? " — " + detail.slice(0, 300) : ""}`
-  );
+  if (
+    execution === "FINISHED_WITH_ERROR" ||
+    leaderExecution === "ERROR" ||
+    leaderExecution === "FAILURE"
+  ) {
+    throw new Error(
+      `${label}: ${status} execution ${execution}/${leaderExecution || "?"} — ${leaderDetail(leader)}`
+    );
+  }
+  // Neither field reports a result: let the follow-up read prove the outcome.
+  log(`WARN ${label}: ${status}, execution result not reported`);
+  return { receipt, full };
 }
 
 async function withFees(client, payload) {
@@ -191,35 +219,10 @@ function describeTx(tx) {
     `to_address=${tx?.to_address ?? "?"}`,
     `decoded=${tx?.txDataDecoded?.contractAddress ?? "?"}`,
   ];
-  if (leader?.error) {
-    parts.push(`error=${String(leader.error).replace(/\s+/g, " ").slice(0, 300)}`);
+  if (leader) {
+    parts.push(`detail=${leaderDetail(leader).slice(0, 600)}`);
   }
   return parts.join(" ");
-}
-
-async function traceOf(client, hash) {
-  if (!hash) return { detail: "" };
-  try {
-    const trace = await client.debugTraceTransaction({ hash });
-    const parts = [];
-    if (trace?.result_code !== undefined) parts.push(`code=${trace.result_code}`);
-    for (const key of ["error", "stderr", "stdout"]) {
-      const value = String(trace?.[key] ?? "").trim();
-      if (value) parts.push(`${key}=${value.replace(/\s+/g, " ").slice(0, 300)}`);
-    }
-    const genvm = Array.isArray(trace?.genvm_log)
-      ? trace.genvm_log
-          .slice(-5)
-          .map((entry) => (typeof entry === "string" ? entry : JSON.stringify(entry)))
-          .join(" | ")
-      : "";
-    if (genvm) parts.push(`genvm=${genvm.slice(0, 400)}`);
-    return { detail: parts.join(" ") };
-  } catch (error) {
-    return {
-      detail: `unavailable (${String(error?.message ?? error).replace(/\s+/g, " ").slice(0, 200)})`,
-    };
-  }
 }
 
 async function deployFees(client) {
@@ -302,6 +305,17 @@ async function main() {
   pass("deployer balance", `${formatEther(balance)} GEN`);
 
   const code = readFileSync("contracts/vonis.py", "utf8");
+
+  // Compile the contract on the node before spending a deploy on it: this
+  // reports a bad Depends header or an SDK mismatch as a clear error.
+  try {
+    const schema = await c1.getContractSchemaForCode(code);
+    const methods = Object.keys(schema?.methods ?? {});
+    pass("schema (off-node)", `${methods.length} methods`);
+  } catch (error) {
+    log(`WARN schema (off-node): ${String(error?.message ?? error).slice(0, 300)}`);
+  }
+
   let address = null;
   let deployHash = null;
   try {
@@ -327,8 +341,10 @@ async function main() {
     log(`contract code bytes: ${codeAtAddress.length}`);
     pass("deployed", address);
   } catch (error) {
-    const trace = await traceOf(c1, deployHash);
-    fail("deploy", `${String(error?.message ?? error)} | trace: ${trace.detail}`);
+    const failed = deployHash
+      ? await c1.getTransaction({ hash: deployHash }).catch(() => null)
+      : null;
+    fail("deploy", `${String(error?.message ?? error)} | ${describeTx(failed)}`);
     summary();
     process.exit(1);
   }
@@ -342,8 +358,8 @@ async function main() {
     pass("get_case_count", String(count));
     if (Number(count) !== 0) fail("fresh contract", "case_count is not zero");
   } catch (error) {
-    const trace = await traceOf(c1, deployHash);
-    fail("get_case_count", `${String(error?.message ?? error)} | trace: ${trace.detail}`);
+    const failed = await c1.getTransaction({ hash: deployHash }).catch(() => null);
+    fail("get_case_count", `${String(error?.message ?? error)} | ${describeTx(failed)}`);
     summary();
     process.exit(1);
   }
