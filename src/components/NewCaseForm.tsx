@@ -3,8 +3,9 @@ import type { FormEvent } from "react";
 import { deadlineToUnix, parseGenToWei } from "../lib/format";
 
 type Props = {
-  busy: boolean;
-  onCreate: (args: unknown[], value: bigint) => void;
+  disabled: boolean;
+  pending: boolean;
+  onCreate: (args: unknown[], value: bigint) => Promise<boolean>;
 };
 
 function defaultDeadline(): string {
@@ -23,7 +24,7 @@ function defaultDeadline(): string {
   );
 }
 
-export default function NewCaseForm({ busy, onCreate }: Props) {
+export default function NewCaseForm({ disabled, pending, onCreate }: Props) {
   const [provider, setProvider] = useState("");
   const [title, setTitle] = useState("");
   const [specUrl, setSpecUrl] = useState("");
@@ -34,9 +35,10 @@ export default function NewCaseForm({ busy, onCreate }: Props) {
   const [reward, setReward] = useState("1");
   const [error, setError] = useState("");
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+
     try {
       if (!/^0x[0-9a-fA-F]{40}$/.test(provider.trim())) {
         throw new Error("Alamat provider tidak valid.");
@@ -44,8 +46,12 @@ export default function NewCaseForm({ busy, onCreate }: Props) {
       if (!/^https?:\/\//.test(specUrl.trim())) {
         throw new Error("URL spesifikasi harus http/https.");
       }
+      if (title.trim().length === 0) {
+        throw new Error("Judul wajib diisi.");
+      }
+
       const value = parseGenToWei(reward);
-      onCreate(
+      const ok = await onCreate(
         [
           provider.trim(),
           title.trim(),
@@ -55,6 +61,12 @@ export default function NewCaseForm({ busy, onCreate }: Props) {
         ],
         value
       );
+
+      if (ok) {
+        setProvider("");
+        setTitle("");
+        setSpecUrl("");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -63,13 +75,18 @@ export default function NewCaseForm({ busy, onCreate }: Props) {
   return (
     <details className="new-case">
       <summary>Buat kasus baru</summary>
-      <form onSubmit={submit}>
+      <form onSubmit={(event) => void submit(event)}>
+        {disabled && (
+          <p className="muted smallText">Hubungkan wallet untuk mengunci reward.</p>
+        )}
+
         <div className="field">
           <label htmlFor="provider">Alamat provider</label>
           <input
             id="provider"
             value={provider}
             placeholder="0x…"
+            autoComplete="off"
             onChange={(event) => setProvider(event.target.value)}
           />
         </div>
@@ -127,8 +144,8 @@ export default function NewCaseForm({ busy, onCreate }: Props) {
 
         {error && <p className="form-error">{error}</p>}
 
-        <button type="submit" disabled={busy}>
-          {busy ? "Mengirim…" : "Kunci reward dan buka kasus"}
+        <button type="submit" disabled={disabled || pending}>
+          {pending ? "Mengirim…" : "Kunci reward dan buka kasus"}
         </button>
       </form>
     </details>

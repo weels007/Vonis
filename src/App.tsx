@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CaseDetail from "./components/CaseDetail";
 import CaseList from "./components/CaseList";
+import ConnectButton from "./components/ConnectButton";
 import NewCaseForm from "./components/NewCaseForm";
+import Toast from "./components/Toast";
+import TxPanel from "./components/TxPanel";
+import { useTransactions } from "./hooks/useTransactions";
+import type { TxItem } from "./hooks/useTransactions";
 import { DEMO_CASES } from "./lib/demo";
+import { friendlyError, rawError } from "./lib/errors";
 import {
   CONTRACT_ADDRESS,
   IS_CONFIGURED,
@@ -14,18 +20,52 @@ import {
   getCreditOf,
   writeVonis,
 } from "./lib/genlayer";
-import { actionError, formatGen, shortAddress } from "./lib/format";
+import { formatGen, shortAddress } from "./lib/format";
 import type { CaseView } from "./lib/types";
+import {
+  currentChainId,
+  ensureNetwork,
+  getBalanceWei,
+  silentAccount,
+  watchWallet,
+} from "./lib/wallet";
+
+function makeToast(
+  label: string,
+  method: string,
+  ok: boolean,
+  hash?: string,
+  error?: string,
+  detail?: string
+): TxItem {
+  return {
+    id: label + ":" + Date.now(),
+    key: "toast",
+    label,
+    method,
+    status: ok ? "success" : "error",
+    hash,
+    error,
+    errorDetail: detail,
+    startedAt: Date.now(),
+  };
+}
 
 export default function App() {
   const [account, setAccount] = useState("");
+  const [chainId, setChainId] = useState<number | null>(null);
   const [cases, setCases] = useState<CaseView[]>(IS_CONFIGURED ? [] : DEMO_CASES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [demo, setDemo] = useState(!IS_CONFIGURED);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [connecting, setConnecting] = useState(false);
   const [credit, setCredit] = useState(0);
+  const [balance, setBalance] = useState(0n);
+  const [toast, setToast] = useState<TxItem | null>(null);
+  const [txOpen, setTxOpen] = useState(false);
+  const [focusHash, setFocusHash] = useState<string | null>(null);
+
+  const { items, pendingKeys, run, clearHistory } = useTransactions();
 
   const refresh = useCallback(async () => {
     if (!IS_CONFIGURED) {
@@ -44,7 +84,7 @@ export default function App() {
         try {
           list.push(await getCase(id));
         } catch {
-          // Skip cases that cannot be decoded instead of failing the whole list.
+          // Skip a case that cannot be decoded instead of failing the list.
         }
       }
       setCases(list);
@@ -52,11 +92,52 @@ export default function App() {
       setError("");
       setSelectedId((current) => current ?? (list[0]?.id ?? null));
     } catch (err) {
-      setError(actionError(err));
+      setError(friendlyError(err));
       setDemo(true);
       setCases(DEMO_CASES);
     }
   }, []);
+
+  const loadWallet = useCallback(async (who: string) => {
+    if (!who) {
+      setCredit(0);
+      setBalance(0n);
+      return;
+    }
+    setBalance(await getBalanceWei(who));
+    if (!IS_CONFIGURED) return;
+    try {
+      setCredit(await getCreditOf(who));
+    } catch {
+      // Credit is a convenience: a failed read should not block the app.
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      const who = await silentAccount();
+      const chain = await currentChainId();
+      if (!alive) return;
+      if (who) {
+        setAccount(who);
+        void loadWallet(who);
+      }
+      setChainId(chain);
+    })();
+
+    const unwatch = watchWallet((nextAccount, nextChain) => {
+      if (nextChain !== null) setChainId(nextChain);
+      setAccount(nextAccount);
+      if (nextAccount) void loadWallet(nextAccount);
+    });
+
+    return () => {
+      alive = false;
+      unwatch();
+    };
+  }, [loadWallet]);
 
   useEffect(() => {
     void refresh();
@@ -66,58 +147,90 @@ export default function App() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const loadCredit = useCallback(async (who: string) => {
-    if (!IS_CONFIGURED || !who) return;
-    try {
-      setCredit(await getCreditOf(who));
-    } catch {
-      // Non-critical: the header simply shows no claim button.
-    }
-  }, []);
-
   useEffect(() => {
-    void loadCredit(account);
-  }, [account, loadCredit]);
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 8000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const selected = useMemo(
     () => cases.find((item) => item.id === selectedId) ?? cases[0] ?? null,
     [cases, selectedId]
   );
 
-  const handleWrite = async (
-    functionName: string,
-    args: unknown[],
-    value: bigint = 0n
-  ) => {
-    if (!account) {
-      setError("Hubungkan wallet dulu.");
-      return;
-    }
-
-    try {
-      setBusy(true);
-      setError("");
-      const hash = await writeVonis(account, functionName, args, value);
-      setNotice("Transaksi terkirim: " + shortAddress(hash));
-      await refresh();
-      await loadCredit(account);
-    } catch (err) {
-      setError(actionError(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleConnect = async () => {
+    if (connecting) return;
     try {
-      setError("");
+      setConnecting(true);
       const who = await connectWallet();
       setAccount(who);
-      await loadCredit(who);
+      setChainId(await currentChainId());
+      await loadWallet(who);
     } catch (err) {
-      setError(actionError(err));
+      setToast(
+        makeToast(
+          "Hubungkan wallet",
+          "eth_requestAccounts",
+          false,
+          undefined,
+          friendlyError(err),
+          rawError(err)
+        )
+      );
+    } finally {
+      setConnecting(false);
     }
   };
+
+  const handleSwitch = async () => {
+    try {
+      await ensureNetwork();
+      setChainId(await currentChainId());
+    } catch (err) {
+      setToast(
+        makeToast(
+          "Ganti jaringan",
+          "wallet_switchEthereumChain",
+          false,
+          undefined,
+          friendlyError(err),
+          rawError(err)
+        )
+      );
+    }
+  };
+
+  const handleAction = async (
+    key: string,
+    label: string,
+    method: string,
+    args: unknown[],
+    value: bigint = 0n
+  ): Promise<boolean> => {
+    if (!account) {
+      setToast(makeToast(label, method, false, undefined, "Hubungkan wallet dulu."));
+      return false;
+    }
+
+    const result = await run(key, label, method, async () => {
+      const out = await writeVonis(account, method, args, value);
+      return out.hash;
+    });
+
+    setToast(makeToast(label, method, result.ok, result.hash, result.error));
+    if (result.ok) {
+      await refresh();
+      await loadWallet(account);
+    }
+    return result.ok;
+  };
+
+  const handleWithdraw = async () => {
+    const ok = await handleAction("withdraw", "Klaim dana", "withdraw", []);
+    if (ok) setCredit(0);
+  };
+
+  const pendingCount = items.filter((item) => item.status === "pending").length;
 
   return (
     <div className="page">
@@ -144,18 +257,34 @@ export default function App() {
           ) : (
             <span className="chip warn">kontrak belum diatur</span>
           )}
-          <button className="btn" onClick={() => void handleConnect()}>
-            {account ? shortAddress(account) : "Hubungkan wallet"}
-          </button>
+          {account && <span className="chip muted">{formatGen(Number(balance))}</span>}
+          <ConnectButton
+            account={account}
+            chainId={chainId}
+            connecting={connecting}
+            onConnect={() => void handleConnect()}
+            onSwitch={() => void handleSwitch()}
+          />
           {credit > 0 && (
             <button
               className="btn primary"
-              disabled={busy}
-              onClick={() => void handleWrite("withdraw", [])}
+              type="button"
+              disabled={pendingKeys.has("withdraw")}
+              onClick={() => void handleWithdraw()}
             >
-              Klaim {formatGen(credit)}
+              {pendingKeys.has("withdraw") ? "Mengklaim…" : "Klaim " + formatGen(credit)}
             </button>
           )}
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => {
+              setFocusHash(null);
+              setTxOpen(true);
+            }}
+          >
+            Transaksi{pendingCount > 0 ? " (" + pendingCount + ")" : ""}
+          </button>
         </div>
       </header>
 
@@ -167,7 +296,6 @@ export default function App() {
       )}
 
       {error && <div className="toast error">{error}</div>}
-      {notice && <div className="toast ok">{notice}</div>}
 
       <main className="grid">
         <section className="panel">
@@ -179,8 +307,11 @@ export default function App() {
           <CaseList cases={cases} selectedId={selected?.id ?? null} onSelect={setSelectedId} />
 
           <NewCaseForm
-            busy={busy || !account}
-            onCreate={(args, value) => void handleWrite("open_case", args, value)}
+            disabled={!account}
+            pending={pendingKeys.has("create-case")}
+            onCreate={(args, value) =>
+              handleAction("create-case", "Buat kasus", "open_case", args, value)
+            }
           />
         </section>
 
@@ -189,9 +320,9 @@ export default function App() {
             <CaseDetail
               c={selected}
               account={account}
-              busy={busy}
-              onAction={(functionName, args, value) =>
-                void handleWrite(functionName, args, value)
+              pendingKeys={pendingKeys}
+              onAction={(key, label, method, args, value) =>
+                void handleAction(key, label, method, args, value)
               }
             />
           ) : (
@@ -204,6 +335,30 @@ export default function App() {
         <span>Vonis · Intelligent Contract GenLayer</span>
         <span>Data dibaca ulang setiap 15 detik.</span>
       </footer>
+
+      {toast && (
+        <div className="toasts">
+          <Toast
+            item={toast}
+            onOpen={(hash) => {
+              setFocusHash(hash);
+              setTxOpen(true);
+            }}
+            onDismiss={() => setToast(null)}
+          />
+        </div>
+      )}
+
+      <TxPanel
+        open={txOpen}
+        items={items}
+        focusHash={focusHash}
+        onClose={() => setTxOpen(false)}
+        onClear={() => {
+          clearHistory();
+          setTxOpen(false);
+        }}
+      />
     </div>
   );
 }

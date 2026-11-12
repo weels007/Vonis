@@ -90,6 +90,20 @@ Fitur: daftar kasus, detail putusan AI (verdict, skor, award, kriteria + alasan)
 (accept, kirim bukti, terima hasil, buka sengketa, minta putusan, selesaikan, batalkan), buat kasus
 baru dengan reward GEN, dan tombol klaim dana.
 
+Lapisan transaksi:
+
+- Connect wallet memakai `eth_accounts` saat load (tanpa popup) dan `eth_requestAccounts` hanya saat
+  diklik; satu promise in-flight dipakai bersama sehingga klik ganda tidak membuka dua popup.
+- Wallet yang berada di jaringan salah otomatis ditawari ganti jaringan (`wallet_switchEthereumChain`
+  dengan fallback `wallet_addEthereumChain`).
+- Setiap aksi punya kunci (`accept:case-0`, `deliver:case-0`, …) dan dikunci selama pending, jadi
+  tombol tidak bisa mengirim dua transaksi.
+- Toast membedakan sukses dan gagal, error mentah diterjemahkan ke pesan yang bisa ditindaklanjuti,
+  dan sukses menyertakan tautan detail transaksi.
+- Panel "Transaksi" menyimpan riwayat sesi (hash, metode, status, error, tautan explorer, salin hash).
+- Aksi destruktif (batalkan kasus) memakai konfirmasi dua langkah; form membuat kasus direset setelah
+  berhasil.
+
 ## Deploy (ringkas)
 
 ```bash

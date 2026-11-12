@@ -1,26 +1,46 @@
 import { createClient } from "genlayer-js";
-import { studionet, testnetBradbury } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
 import type { CaseView } from "./types";
+import { CHAIN, NETWORK, ensureNetwork } from "./wallet";
 
-const NETWORK =
-  (import.meta.env.VITE_NETWORK as string | undefined) ?? "studionet";
-const CHAIN = NETWORK === "testnetBradbury" ? testnetBradbury : studionet;
+export { NETWORK_LABEL } from "./wallet";
 
-export const NETWORK_LABEL =
-  NETWORK === "testnetBradbury" ? "Bradbury" : "Studionet";
 export const CONTRACT_ADDRESS = (
   import.meta.env.VITE_CONTRACT_ADDRESS ?? ""
 ).trim();
 export const IS_CONFIGURED = /^0x[0-9a-fA-F]{40}$/.test(CONTRACT_ADDRESS);
 
-export function explorerAddress(address: string): string {
+const readClient: any = createClient({ chain: CHAIN });
+
+function explorerBase(): string {
   return NETWORK === "testnetBradbury"
-    ? `https://scan.testnet-chain.genlayer.com/address/${address}`
-    : `https://explorer-studio.genlayer.com/address/${address}`;
+    ? "https://scan.testnet-chain.genlayer.com"
+    : "https://explorer-studio.genlayer.com";
 }
 
-const readClient: any = createClient({ chain: CHAIN });
+export function explorerAddress(address: string): string {
+  return explorerBase() + "/address/" + address;
+}
+
+export function explorerTx(hash: string): string {
+  return explorerBase() + "/tx/" + hash;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 async function read(functionName: string, args: unknown[] = []): Promise<any> {
   return readClient.readContract({
@@ -47,42 +67,31 @@ export async function getCreditOf(address: string): Promise<number> {
   return Number(raw);
 }
 
-export async function connectWallet(): Promise<string> {
-  if (!window.ethereum) {
-    throw new Error(
-      "Wallet tidak ditemukan. Buka di browser dengan MetaMask atau wallet EIP-1193."
-    );
-  }
-  const accounts = (await window.ethereum.request({
-    method: "eth_requestAccounts",
-  })) as string[];
-  if (!accounts || accounts.length === 0) {
-    throw new Error("Wallet tidak mengembalikan akun.");
-  }
-  return accounts[0];
-}
+export type WriteResult = {
+  hash: string;
+  execution: string;
+};
 
 export async function writeVonis(
   account: string,
   functionName: string,
   args: unknown[] = [],
   value: bigint = 0n
-): Promise<string> {
+): Promise<WriteResult> {
   if (!IS_CONFIGURED) {
     throw new Error("VITE_CONTRACT_ADDRESS belum diisi.");
   }
+  if (!window.ethereum) {
+    throw new Error("Wallet tidak ditemukan.");
+  }
+
+  await ensureNetwork();
 
   const client: any = createClient({
     chain: CHAIN,
-    account,
+    account: account as `0x${string}`,
     provider: window.ethereum,
   });
-
-  try {
-    await client.connect(NETWORK === "testnetBradbury" ? "testnetBradbury" : "studionet");
-  } catch {
-    // If the wallet refuses to switch, writeContract reports the mismatch clearly.
-  }
 
   const payload: any = {
     account,
@@ -100,13 +109,27 @@ export async function writeVonis(
       feeValue: estimate.feeValue,
     };
   } catch {
-    // Studio is gasless; leave fees unset when estimation is unavailable.
+    // Studio is gasless; if estimation fails we still try the write.
   }
 
-  const hash = await client.writeContract(payload);
-  await client.waitForTransactionReceipt({
-    hash,
-    status: TransactionStatus.ACCEPTED,
-  });
-  return String(hash);
+  const hash: string = await client.writeContract(payload);
+
+  const receipt: any = await withTimeout(
+    client.waitForTransactionReceipt({
+      hash,
+      status: TransactionStatus.ACCEPTED,
+    }),
+    180_000,
+    "Transaksi melewati batas waktu tunggu (3 menit)."
+  );
+
+  const execution = String(receipt?.txExecutionResultName ?? "UNKNOWN");
+
+  if (execution === "FINISHED_WITH_ERROR") {
+    throw new Error(
+      "Transaksi diterima tetapi eksekusi kontrak gagal (FINISHED_WITH_ERROR). Periksa detail transaksi."
+    );
+  }
+
+  return { hash, execution };
 }

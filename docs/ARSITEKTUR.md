@@ -336,7 +336,20 @@ berasal dari view kontrak.
 
 - `src/lib/genlayer.ts` — read client (tanpa wallet) dan write client (`window.ethereum`), estimasi
   fee `estimateTransactionFeesForWrite` termasuk `messageAllocations`, lalu
-  `waitForTransactionReceipt(ACCEPTED)`.
+  `waitForTransactionReceipt(ACCEPTED)` dengan timeout 3 menit dan pengecekan
+  `txExecutionResultName` agar eksekusi yang gagal tidak terlihat seperti sukses.
+- `src/lib/wallet.ts` — `eth_accounts` saat load (tanpa popup), satu promise in-flight untuk
+  `eth_requestAccounts` (klik ganda tidak menumpuk popup), switch/add chain, listener
+  `accountsChanged`/`chainChanged`, dan saldo GEN.
+- `src/lib/errors.ts` — menerjemahkan error wallet dan pesan revert kontrak menjadi kalimat yang
+  bisa ditindaklanjuti; pesan mentah tetap disimpan di riwayat transaksi.
+- `src/hooks/useTransactions.ts` — antrean transaksi dengan kunci per aksi, riwayat sesi di
+  `localStorage`, status `pending/success/error`, dan `errorDetail` untuk debugging.
+- `src/components/Toast.tsx` — sukses/gagal, tautan explorer, tombol detail, auto-dismiss 8 detik.
+- `src/components/TxPanel.tsx` — riwayat transaksi: metode, waktu, hash, status, error, salin hash,
+  tautan explorer.
+- `src/components/ConnectButton.tsx` — status koneksi dan tombol ganti jaringan bila wallet salah
+  chain.
 - `src/lib/format.ts` — label status/verdict, format GEN dan tanggal, `isFinalizable`.
 - `src/lib/demo.ts` — tiga kasus contoh agar UI bisa dilihat sebelum deploy.
 - `src/components/CaseDetail.tsx` — panel "Putusan AI consensus": verdict, skor, award, alasan,
