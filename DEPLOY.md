@@ -98,8 +98,9 @@ roughly thirty requests a minute, and polling faster is what makes a live run sl
   `CLAUSEGUARD_TESTER1_*`). `TESTER2` is optional; without it the script funds a throwaway provider
   key from the Studio simulator.
 - Studionet state is temporary, so every run deploys its own contract and prints the address in the
-  job summary. Do not commit that address as the frontend default; it is only valid while the node
-  keeps the state.
+  job summary. Do not treat that address as permanent; it is only valid while the node keeps the
+  state. The frontend falls back to the latest one via `DEFAULT_CONTRACT_ADDRESS` in
+  `src/lib/genlayer.ts`; update it (or set `VITE_CONTRACT_ADDRESS`) after a run reports a new one.
 - The step summary is where the result table and the contract address live.
 
 

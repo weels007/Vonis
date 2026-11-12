@@ -5,8 +5,13 @@ import { CHAIN, NETWORK, ensureNetwork } from "./wallet";
 
 export { NETWORK_LABEL } from "./wallet";
 
+// Address of the most recent Studionet deployment (see the `studionet`
+// workflow's step summary). Studionet state is temporary, so a new run
+// replaces it: update this constant, or set VITE_CONTRACT_ADDRESS.
+const DEFAULT_CONTRACT_ADDRESS = "0xBc079ed3e1354D175E172175E475d782BF82C1aA";
+
 export const CONTRACT_ADDRESS = (
-  import.meta.env.VITE_CONTRACT_ADDRESS ?? ""
+  import.meta.env.VITE_CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS
 ).trim();
 export const IS_CONFIGURED = /^0x[0-9a-fA-F]{40}$/.test(CONTRACT_ADDRESS);
 
