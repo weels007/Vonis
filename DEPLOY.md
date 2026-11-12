@@ -60,7 +60,7 @@ genlayer call <address> get_case_count
 genlayer call <address> get_judge
 ```
 
-Then open the case page in the frontend after setting `VITE_CONTRACT_ADDRESS=<address>`.
+Then open the frontend: replace `CONTRACT_ADDRESS` in `src/lib/genlayer.ts` with the new address.
 
 ## 4. Use `tester2` as the provider
 
@@ -99,8 +99,8 @@ roughly thirty requests a minute, and polling faster is what makes a live run sl
   key from the Studio simulator.
 - Studionet state is temporary, so every run deploys its own contract and prints the address in the
   job summary. Do not treat that address as permanent; it is only valid while the node keeps the
-  state. The frontend falls back to the latest one via `DEFAULT_CONTRACT_ADDRESS` in
-  `src/lib/genlayer.ts`; update it (or set `VITE_CONTRACT_ADDRESS`) after a run reports a new one.
+  state. The frontend hard-sets the latest one in `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`); update
+  that line after a run reports a new address.
 - The step summary is where the result table and the contract address live.
 
 
@@ -113,10 +113,8 @@ Two patterns. Pick one deliberately.
 The contract is immutable and deployed once, so CI does not need the deployer key at all.
 
 1. Deploy from your machine with sections 1–2 above.
-2. Store only the **public contract address**:
-   - Settings → Secrets and variables → Actions → **Variables** → `VITE_CONTRACT_ADDRESS`.
-   - Optionally commit it as a fallback in `src/lib/genlayer.ts` so published previews connect
-     without local env files.
+2. Put the **public contract address** in `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`) and commit it:
+   published previews then connect without any environment variable.
 3. The deployer key never enters CI, so a compromised workflow cannot drain or redeploy anything.
 
 This is the safer default: a leaked deployer key is a permanent impersonation of the judge, while a

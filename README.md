@@ -80,16 +80,14 @@ Test layers:
 
 ```bash
 npm install
-cp .env.example .env.local   # set VITE_CONTRACT_ADDRESS after deployment
 npm run dev
 ```
 
-Without `VITE_CONTRACT_ADDRESS`, the app falls back to the Studionet deployment recorded in
-`src/lib/genlayer.ts` (`0xBc079ed3e1354D175E172175E475d782BF82C1aA`, from the latest `studionet`
-run). Set the variable to point somewhere else; leave it empty and clear the constant to run in
-**demo mode** with three sample cases — including a ruled case that shows the score, award, reasons
-and per-criterion results. With the address set, it
-reads `get_case_json` every 15 seconds.
+The contract address is hard-set in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`), not read from the
+environment: `0xBc079ed3e1354D175E172175E475d782BF82C1aA`, from the latest `studionet` run. Replace
+that line after a deployment; if it holds an invalid value the app falls back to **demo mode** with
+three sample cases — including a ruled case that shows the score, award, reasons and per-criterion
+results. With a valid address it reads `get_case_json` every 15 seconds.
 
 Pages (hash routing, so deep links work on static hosting): landing, case explorer, case detail, new
 case, and transaction history.
@@ -119,9 +117,9 @@ genlayer network set studionet
 genlayer deploy --contract contracts/vonis.py
 ```
 
-The deployer address becomes the judge. Record the contract address in `.env` and in
-`DEFAULT_CONTRACT_ADDRESS` (`src/lib/genlayer.ts`). That constant currently holds the latest
-Studionet run, so it may stop existing when the node resets.
+The deployer address becomes the judge. The frontend hard-sets the contract address in
+`CONTRACT_ADDRESS` (`src/lib/genlayer.ts`); it currently holds the latest Studionet run, so it may
+stop existing when the node resets.
 
 The contract's `Depends` header pins a concrete `py-genlayer` runner hash, matching the GenVM
 release the node runs. `py-genlayer:latest` is not deployable: it resolves to the GenVM test runner,

@@ -5,14 +5,13 @@ import { CHAIN, NETWORK, ensureNetwork } from "./wallet";
 
 export { NETWORK_LABEL } from "./wallet";
 
-// Address of the most recent Studionet deployment (see the `studionet`
-// workflow's step summary). Studionet state is temporary, so a new run
-// replaces it: update this constant, or set VITE_CONTRACT_ADDRESS.
-const DEFAULT_CONTRACT_ADDRESS = "0xBc079ed3e1354D175E172175E475d782BF82C1aA";
+// The contract address is hard-set here, not read from the environment: the
+// published preview has to work without a build-time variable. It points at the
+// latest Studionet deployment (see the `studionet` workflow's step summary);
+// Studionet state is temporary, so replace this value when a run reports a new
+// address.
+export const CONTRACT_ADDRESS = "0xBc079ed3e1354D175E172175E475d782BF82C1aA";
 
-export const CONTRACT_ADDRESS = (
-  import.meta.env.VITE_CONTRACT_ADDRESS || DEFAULT_CONTRACT_ADDRESS
-).trim();
 export const IS_CONFIGURED = /^0x[0-9a-fA-F]{40}$/.test(CONTRACT_ADDRESS);
 
 const readClient: any = createClient({ chain: CHAIN });
@@ -84,7 +83,7 @@ export async function writeVonis(
   value: bigint = 0n
 ): Promise<WriteResult> {
   if (!IS_CONFIGURED) {
-    throw new Error("VITE_CONTRACT_ADDRESS is not set.");
+    throw new Error("Contract address is not configured.");
   }
   if (!window.ethereum) {
     throw new Error("No wallet found.");

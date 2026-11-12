@@ -21,8 +21,8 @@ export function friendlyError(input: unknown): string {
     return "Insufficient balance for the reward and network fees.";
   if (lower.includes("chain") && (lower.includes("mismatch") || lower.includes("wrong")))
     return "The wallet is on the wrong network. Switch networks and try again.";
-  if (lower.includes("vite_contract_address"))
-    return "Contract address is not configured (VITE_CONTRACT_ADDRESS).";
+  if (lower.includes("contract address is not configured"))
+    return "The contract address is missing from src/lib/genlayer.ts.";
   if (lower.includes("timed out") || lower.includes("timeout"))
     return "The transaction took too long. Check its hash in the explorer before retrying.";
   if (lower.includes("execution") && lower.includes("error"))

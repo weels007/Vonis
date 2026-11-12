@@ -261,8 +261,8 @@ export default function App() {
           <>
             {demo && (
               <div className="banner">
-                Demo data — set <code>VITE_CONTRACT_ADDRESS</code> in <code>.env.local</code> to read
-                the live contract.
+                Demo data — the contract address in <code>src/lib/genlayer.ts</code> is empty or
+                invalid, so the live contract cannot be read.
               </div>
             )}
 
