@@ -7,8 +7,9 @@ requester rejects the delivery, a dispute opens and a **verdict** is produced by
 the evidence against the acceptance rubric — then **independently re-verified by GenLayer
 validators**. Only deterministic code moves money.
 
-Status: contract foundation + test suite (Milestone 0–1). All 79 tests pass in GitHub Actions
-(unit, structural lint, consensus, integration, adversarial, runner smoke). Not deployed yet.
+Status: contract foundation + test suite (Milestone 0–1). 80 tests pass in GitHub Actions
+(unit, structural lint, consensus, integration, adversarial, runner smoke), and the Studionet
+workflow deploys the contract and drives the full case lifecycle against real validators.
 
 ## Why GenLayer
 
@@ -64,8 +65,8 @@ with `direct_vm.mock_web()` and `direct_vm.mock_llm()`. On the first run, `genla
 the SDK matching the contract's `Depends` header (internet required).
 
 `withdraw` is intentionally not exercised in direct mode because that mode cannot emit external
-messages; payout is covered in Studio mode later. What is tested here is the credit ledger and all
-settlement arithmetic.
+messages; the Studionet workflow covers it live (a provider withdraws its credit and the credit is
+read back as zero). What direct mode tests here is the credit ledger and all settlement arithmetic.
 
 Test layers:
 
@@ -146,5 +147,6 @@ Ghost where writes succeed as no-ops), and then exercises the full case lifecycl
 
 - Contract events (`gl.chain.Event` + `gen_getLogs`) so an indexer does not have to poll; the
   `emit()` API is not verified on the pinned SDK and direct mode cannot emit messages.
-- `emit_transfer` integration is covered only in Studio mode (direct mode cannot emit messages).
+- The real LLM dispute path (`adjudicate` with web access) is behind `RUN_ADJUDICATION=1` on the
+  Studionet workflow; it is not part of the default run because it takes minutes.
 - Multi-judge/DAO, a protocol-appeal UI, and cross-application reputation.

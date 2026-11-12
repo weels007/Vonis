@@ -82,12 +82,22 @@ the frontend (or GenLayer Studio) with a funded wallet. A happy-path smoke test:
 The dispute path needs real web/LLM execution; use a public page for the specification and the
 evidence, and expect the verdict to take minutes.
 
-## Automating it later
+## Automating it
 
-If you want a CI deploy, do not commit the keystore. Put it and its password in GitHub Actions
-secrets and decrypt it inside a small Node script using `viem`'s keystore helpers, then call
-`genlayer-js` `deployContract`. That script does not exist yet; ask before adding it, because it
-means giving CI the deployer key.
+The repository already automates this: `.github/workflows/studionet.yml` runs
+`scripts/studionet.mjs` on `workflow_dispatch` (or a push whose commit message contains `[studionet]`).
+It decrypts the keystore in memory, deploys a fresh contract, checks that code really exists at the
+reported address, and then exercises the full lifecycle: register, stake, open, accept, deliver,
+non-judge `judge_rule` rejected, `accept_delivery`, `withdraw`, `cancel_case`, and oversized evidence
+rejected.
+
+- Secrets: `VONIS_TESTER1_KEYSTORE` / `VONIS_TESTER1_PASSWORD` (aliases `VONIS_KEYSTORE_JSON`,
+  `CLAUSEGUARD_TESTER1_*`). `TESTER2` is optional; without it the script funds a throwaway provider
+  key from the Studio simulator.
+- Studionet state is temporary, so every run deploys its own contract and prints the address in the
+  job summary. Do not commit that address as the frontend default; it is only valid while the node
+  keeps the state.
+- The step summary is where the result table and the contract address live.
 
 
 ## If you want the key in GitHub Actions secrets
@@ -115,40 +125,24 @@ Use this only if you need repeatable deploys from CI.
 Create an environment named `studionet` (Settings → Environments) with **required reviewers**, then
 add these **secrets** to that environment (not to the whole repository):
 
-- `VONIS_KEYSTORE_JSON` — the entire keystore JSON on one line
-- `VONIS_KEYSTORE_PASSWORD` — the keystore password
+- `VONIS_TESTER1_KEYSTORE` — the entire keystore JSON on one line
+- `VONIS_TESTER1_PASSWORD` — the keystore password
 
-Workflow outline:
+Then point the existing workflow at it (`environment: studionet` in `studionet.yml`). Its step is
+already written:
 
 ```yaml
-name: deploy-studionet
-on:
-  workflow_dispatch:
-permissions:
-  contents: read
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: studionet
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: npm install
-      - name: Deploy contract
+      - name: Deploy and test on Studionet
         env:
-          KEYSTORE_JSON: ${{ secrets.VONIS_KEYSTORE_JSON }}
-          KEYSTORE_PASSWORD: ${{ secrets.VONIS_KEYSTORE_PASSWORD }}
-        run: node scripts/deploy.mjs
+          TEST1_KEYSTORE: ${{ secrets.VONIS_TESTER1_KEYSTORE }}
+          TEST1_PASSWORD: ${{ secrets.VONIS_TESTER1_PASSWORD }}
+        run: node scripts/studionet.mjs
 ```
 
-`scripts/deploy.mjs` would decrypt the keystore in memory (`ethers` `Wallet.fromEncryptedJson`),
-build an account with `createAccount(wallet.privateKey)`, call
-`createClient({ chain: studionet, account }).deployContract({ code })`, wait for `ACCEPTED`, and
-print the receipt. That script is **not committed yet**: it needs a dependency (`ethers`), and the
-exact field that carries the new contract address in the receipt has to be verified against a real
-deploy before it can be trusted in automation.
+`scripts/studionet.mjs` decrypts the keystore in memory (`ethers` `Wallet.fromEncryptedJson`), builds
+an account with `createAccount(wallet.privateKey)`, deploys, verifies that code exists at the
+reported address (`getContractCode`), and then runs the live lifecycle described above. It exits
+non-zero when any check fails, so the job is the gate.
 
 Cautions for Pattern B:
 

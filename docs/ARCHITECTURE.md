@@ -277,12 +277,16 @@ quality, fund safety, or product viability.
 Direct-mode tests run with `genlayer-test==0.29.2` and `GENVM_VERSION=v0.2.16` (the fallback the tool
 itself uses). SDK behaviours that differed from the initial assumptions, now handled in the contract:
 
-- `TreeMap` raises `KeyError` for a missing key; there is no automatic zero value. Every read uses
-  `.get()` plus explicit validation.
+- `TreeMap` has no automatic zero value. Its `get` also needs a **default argument** on the node:
+  `self.agents.get(who)` raises there while direct mode tolerates it. Every storage read uses
+  membership plus indexing, and `tests/test_lint.py` rejects a one-argument `.get()` so the gap cannot
+  come back.
+- Address arguments arrive from the client as hex strings while storage keys are `Address` values, so
+  public methods taking an address normalise it with `_as_address` at the boundary.
 - Web responses do not always expose `status_code`; the contract reads `status_code`/`status`/`code`
   and the body through `body`/`content`.
 - Runner/SDK file names and the `genlayer.types` layout differ between the v0.2 and v0.3 lines. Pin
-  the GenVM version in CI; the contract header uses `latest` so it does not depend on a specific hash.
+  the GenVM version in CI; the contract header pins the py-genlayer runner hash the node ships.
 - `gl.vm.run_nondet` (not `run_nondet_unsafe`) is used because the direct-mode runner patches that
   function.
 

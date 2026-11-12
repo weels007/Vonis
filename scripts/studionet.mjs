@@ -156,6 +156,22 @@ function describeError(error) {
   return (text || String(error)).slice(0, 1800);
 }
 
+function executionState(full, receipt) {
+  // Newer nodes leave txExecutionResult empty; the leader vote carries it.
+  const execution = String(
+    full?.txExecutionResultName ?? receipt?.txExecutionResultName ?? "UNKNOWN"
+  );
+  const leader = leaderReceipt(full ?? receipt);
+  const leaderExecution = String(leader?.execution_result ?? "").toUpperCase();
+  const status = String(full?.statusName ?? receipt?.statusName ?? "UNKNOWN");
+  const ok = execution === "FINISHED_WITH_RETURN" || leaderExecution === "SUCCESS";
+  const failed =
+    execution === "FINISHED_WITH_ERROR" ||
+    leaderExecution === "ERROR" ||
+    leaderExecution === "FAILURE";
+  return { status, execution, leaderExecution, leader, ok, failed };
+}
+
 async function wait(client, hash, label) {
   const receipt = await client.waitForTransactionReceipt({
     hash,
@@ -164,27 +180,15 @@ async function wait(client, hash, label) {
     retries: 120,
   });
   const full = await client.getTransaction({ hash });
-  const status = String(full?.statusName ?? receipt?.statusName ?? "UNKNOWN");
-  const execution = String(
-    full?.txExecutionResultName ?? receipt?.txExecutionResultName ?? "UNKNOWN"
-  );
-  const leader = leaderReceipt(full ?? receipt);
-  // Newer nodes leave txExecutionResult empty; the leader vote carries it.
-  const leaderExecution = String(leader?.execution_result ?? "").toUpperCase();
-  if (execution === "FINISHED_WITH_RETURN" || leaderExecution === "SUCCESS") {
-    return { receipt, full };
-  }
-  if (
-    execution === "FINISHED_WITH_ERROR" ||
-    leaderExecution === "ERROR" ||
-    leaderExecution === "FAILURE"
-  ) {
+  const state = executionState(full, receipt);
+  if (state.ok) return { receipt, full };
+  if (state.failed) {
     throw new Error(
-      `${label}: ${status} execution ${execution}/${leaderExecution || "?"} — ${leaderDetail(leader)}`
+      `${label}: ${state.status} execution ${state.execution}/${state.leaderExecution || "?"} — ${leaderDetail(state.leader)}`
     );
   }
   // Neither field reports a result: let the follow-up read prove the outcome.
-  log(`WARN ${label}: ${status}, execution result not reported`);
+  log(`WARN ${label}: ${state.status}, execution result not reported`);
   return { receipt, full };
 }
 
@@ -225,9 +229,15 @@ async function writeExpectFailure(client, address, functionName, args = [], valu
     const receipt = await client.waitForTransactionReceipt({
       hash,
       status: TransactionStatus.ACCEPTED,
+      interval: 3000,
+      retries: 120,
     });
-    const execution = String(receipt?.txExecutionResultName ?? "UNKNOWN");
-    return { failed: execution === "FINISHED_WITH_ERROR", detail: execution };
+    const full = await client.getTransaction({ hash });
+    const state = executionState(full, receipt);
+    const detail = `${state.status} execution ${state.execution}/${
+      state.leaderExecution || "?"
+    }${state.leader ? " — " + leaderDetail(state.leader).slice(0, 200) : ""}`;
+    return { failed: state.failed, detail };
   } catch (error) {
     return { failed: true, detail: describeError(error).slice(0, 160) };
   }
@@ -490,10 +500,19 @@ async function main() {
       fail("deliver_case", describeError(error));
     }
 
-    // Adversarial: non-judge cannot rule.
-    const notJudge = await writeExpectFailure(c2, address, "judge_rule", [caseId, 5000, "nope"]);
-    if (notJudge.failed) pass("judge_rule is judge-only", notJudge.detail);
-    else fail("judge_rule is judge-only", "non-judge call succeeded");
+    // Adversarial: a non-judge cannot rule, and the case must not move.
+    try {
+      const before = JSON.parse(String(await read(c1, address, "get_case_json", [caseId])));
+      const notJudge = await writeExpectFailure(c2, address, "judge_rule", [caseId, 5000, "nope"]);
+      const after = JSON.parse(String(await read(c1, address, "get_case_json", [caseId])));
+      if (after.status !== before.status) {
+        fail("judge_rule is judge-only", `status moved ${before.status} -> ${after.status}`);
+      } else {
+        pass("judge_rule is judge-only", `${before.status} unchanged, ${notJudge.detail}`);
+      }
+    } catch (error) {
+      fail("judge_rule is judge-only", describeError(error));
+    }
 
     try {
       await write(c1, address, "accept_delivery", [caseId]);
@@ -551,8 +570,12 @@ async function main() {
       "case-2",
       "https://example.com/" + "a".repeat(900),
     ]);
-    if (oversized.failed) pass("oversized evidence rejected", oversized.detail);
-    else fail("oversized evidence rejected", "call succeeded");
+    const json = JSON.parse(String(await read(c2, address, "get_case_json", ["case-2"])));
+    if (json.status !== "ACCEPTED") {
+      fail("oversized evidence rejected", `case status is ${json.status}`);
+    } else {
+      pass("oversized evidence rejected", `still ACCEPTED, ${oversized.detail}`);
+    }
   } catch (error) {
     fail("oversized evidence", describeError(error));
   }
