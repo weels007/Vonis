@@ -396,19 +396,22 @@ class Vonis(gl.Contract):
     # -- internal helpers ---------------------------------------------------
 
     def _case(self, case_id: str) -> Case:
-        case = self.cases[case_id]
-        _req(case.status != "", "case not found")
+        case = self.cases.get(case_id)
+        _req(case is not None, "case not found")
         return case
 
     def _agent(self, who: Address) -> Agent:
-        agent = self.agents[who]
-        _req(agent.handle != "", "agent not registered")
+        agent = self.agents.get(who)
+        _req(agent is not None and agent.handle != "", "agent not registered")
         return agent
 
     def _credit(self, who: Address, amount: u256) -> None:
         if int(amount) == 0:
             return
-        self.credits[who] = u256(int(self.credits[who]) + int(amount))
+        current = self.credits.get(who)
+        if current is None:
+            current = u256(0)
+        self.credits[who] = u256(int(current) + int(amount))
         self.credits_total = self.credits_total + amount
 
     def _finalize(self, case_id: str, award_bps: u256) -> None:
@@ -419,7 +422,8 @@ class Vonis(gl.Contract):
         provider_cut = u256(int(reward) * int(award_bps) // BASIS_POINTS)
         requester_cut = reward - provider_cut
 
-        agent = self.agents[case.provider]
+        agent = self.agents.get(case.provider)
+        _req(agent is not None, "agent not registered")
         slash = u256(0)
 
         if case.verdict == VERDICT_PROVIDER and int(agent.stake) > 0:
@@ -463,21 +467,23 @@ class Vonis(gl.Contract):
         _req(len(handle) > 0 and len(handle) <= MAX_TITLE, "handle required")
 
         who = gl.message.sender_address
-        agent = self.agents[who]
+        agent = self.agents.get(who)
 
-        if agent.handle == "":
-            agent.handle = handle
-            agent.endpoint = endpoint
-            agent.stake = u256(0)
-            agent.active_cases = u256(0)
-            agent.cases_opened = u256(0)
-            agent.cases_won = u256(0)
-            agent.cases_lost = u256(0)
-            agent.score = i32(50)
-        else:
-            agent.handle = handle
-            agent.endpoint = endpoint
+        if agent is None or agent.handle == "":
+            self.agents[who] = Agent(
+                handle=handle,
+                endpoint=endpoint,
+                stake=u256(0),
+                active_cases=u256(0),
+                cases_opened=u256(0),
+                cases_won=u256(0),
+                cases_lost=u256(0),
+                score=i32(50),
+            )
+            return
 
+        agent.handle = handle
+        agent.endpoint = endpoint
         self.agents[who] = agent
 
     @gl.public.write.payable
@@ -510,8 +516,8 @@ class Vonis(gl.Contract):
     @gl.public.write
     def withdraw(self) -> None:
         who = gl.message.sender_address
-        amount = self.credits[who]
-        _req(int(amount) > 0, "nothing to withdraw")
+        amount = self.credits.get(who)
+        _req(amount is not None and int(amount) > 0, "nothing to withdraw")
 
         self.credits[who] = u256(0)
         self.credits_total = self.credits_total - amount
@@ -789,27 +795,44 @@ class Vonis(gl.Contract):
 
     @gl.public.view
     def get_credit_of(self, who: Address) -> u256:
-        return self.credits[who]
+        amount = self.credits.get(who)
+        if amount is None:
+            return u256(0)
+        return amount
 
     @gl.public.view
     def get_agent_handle(self, who: Address) -> str:
-        return self.agents[who].handle
+        agent = self.agents.get(who)
+        if agent is None:
+            return ""
+        return agent.handle
 
     @gl.public.view
     def get_agent_score(self, who: Address) -> i32:
-        return self.agents[who].score
+        agent = self.agents.get(who)
+        if agent is None:
+            return i32(0)
+        return agent.score
 
     @gl.public.view
     def get_agent_stake(self, who: Address) -> u256:
-        return self.agents[who].stake
+        agent = self.agents.get(who)
+        if agent is None:
+            return u256(0)
+        return agent.stake
 
     @gl.public.view
     def get_agent_active_cases(self, who: Address) -> u256:
-        return self.agents[who].active_cases
+        agent = self.agents.get(who)
+        if agent is None:
+            return u256(0)
+        return agent.active_cases
 
     @gl.public.view
     def get_agent_stats(self, who: Address) -> str:
-        agent = self.agents[who]
+        agent = self.agents.get(who)
+        if agent is None:
+            return "0|0|0"
         return (
             str(int(agent.cases_opened))
             + "|"
