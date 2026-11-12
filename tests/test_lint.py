@@ -104,15 +104,21 @@ def test_case_records_frontend_fields():
     raise AssertionError("Case dataclass not found")
 
 
-def test_receive_handler_is_payable():
+def test_no_public_method_starts_with_dunder():
+    """GenVM's schema generator rejects public names starting with "__".
+
+    Defining ``__receive__`` therefore breaks ``genlayer schema`` and any
+    tooling that needs the schema, so the contract has no receive handler at
+    all: GenVM rejects a bare value transfer when the handler is missing.
+    """
     for node in ast.walk(_tree()):
-        if not isinstance(node, ast.ClassDef):
+        if not isinstance(node, ast.FunctionDef):
             continue
-        for stmt in node.body:
-            if isinstance(stmt, ast.FunctionDef) and stmt.name == "__receive__":
-                assert "gl.public.write.payable" in _decorators(stmt)
-                return
-    raise AssertionError("__receive__ not found")
+        if not any(d.startswith("gl.public") for d in _decorators(node)):
+            continue
+        assert not node.name.startswith("__"), (
+            "public method starts with __: " + node.name
+        )
 
 
 def test_storage_maps_are_read_with_a_default():

@@ -57,15 +57,15 @@ def test_provider_at_fault_slashes_stake(court, direct_vm, alice, bob):
     )
 
     assert court.get_case_verdict(case_id) == VERDICT_PROVIDER
-    assert int(court.get_case_award_bps(case_id)) == 2000
+    assert int(court.get_case_award_bps(case_id)) == 2500
 
     direct_vm.warp("2100-06-01T00:00:00Z")
     court.finalize_case(case_id)
 
-    # 200 to the provider, 800 refunded + 200 slashed stake to the requester.
-    assert court.get_case_payouts(case_id) == "200|1000|200"
-    assert int(court.get_credit_of(bob)) == 200
-    assert int(court.get_credit_of(alice)) == 1000
+    # 250 to the provider, 750 refunded + 200 slashed stake to the requester.
+    assert court.get_case_payouts(case_id) == "250|950|200"
+    assert int(court.get_credit_of(bob)) == 250
+    assert int(court.get_credit_of(alice)) == 950
     assert int(court.get_agent_stake(bob)) == 800
     assert int(court.get_stakes_total()) == 800
     assert int(court.get_agent_score(bob)) == 40
@@ -80,9 +80,10 @@ def test_shared_verdict_splits_reward(court, direct_vm, alice, bob):
     direct_vm.warp("2100-06-01T00:00:00Z")
     court.finalize_case(case_id)
 
-    assert court.get_case_payouts(case_id) == "600|400|0"
-    assert int(court.get_credit_of(bob)) == 600
-    assert int(court.get_credit_of(alice)) == 400
+    # 6000 snaps to the shared bucket of 5000 basis points.
+    assert court.get_case_payouts(case_id) == "500|500|0"
+    assert int(court.get_credit_of(bob)) == 500
+    assert int(court.get_credit_of(alice)) == 500
     assert int(court.get_agent_score(bob)) == 50
 
 
@@ -229,7 +230,7 @@ def test_case_json_exposes_consensus_detail(court, direct_vm, alice, bob):
     assert data["status"] == "RULED"
     assert data["verdict"] == VERDICT_PROVIDER
     assert data["score"] == 40
-    assert data["award_bps"] == 2000
+    assert data["award_bps"] == 2500
     assert data["reasons"] != ""
     assert data["claim"] == CLAIM
     assert data["requester"] != ""
@@ -266,3 +267,49 @@ def test_read_views_expose_claim_criteria_and_timeline(court, direct_vm, alice, 
     assert settled["status"] == "SETTLED"
     assert settled["credit_provider"] == REWARD
     assert settled["settled_ts"] > 0
+
+
+def test_unresolved_case_refunds_after_the_rescue_window(court, direct_vm, alice, bob):
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0
+    )
+
+    direct_vm.sender = alice
+    with direct_vm.expect_revert("rescue window open"):
+        court.settle_unresolved(case_id)
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    court.settle_unresolved(case_id)
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_payouts(case_id) == "0|1000|0"
+    assert int(court.get_credit_of(alice)) == REWARD
+    assert int(court.get_credit_of(bob)) == 0
+    # An unverifiable outcome is nobody's fault, so the provider keeps its score.
+    assert int(court.get_agent_score(bob)) == 50
+    assert court.get_agent_stats(bob) == "1|0|0"
+
+
+def test_only_a_party_can_rescue_an_unresolved_case(court, direct_vm, carol, alice, bob):
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0
+    )
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = carol
+    with direct_vm.expect_revert("not a party"):
+        court.settle_unresolved(case_id)
+
+
+def test_a_judged_case_cannot_be_rescued(court, direct_vm, direct_owner, alice, bob):
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0
+    )
+
+    direct_vm.sender = direct_owner
+    court.judge_rule(case_id, 4000, "Manual review after the evidence failed.")
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = alice
+    with direct_vm.expect_revert("case is not ruled"):
+        court.settle_unresolved(case_id)

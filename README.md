@@ -7,7 +7,7 @@ requester rejects the delivery, a dispute opens and a **verdict** is produced by
 the evidence against the acceptance rubric — then **independently re-verified by GenLayer
 validators**. Only deterministic code moves money.
 
-Status: contract foundation + test suite (Milestone 0–1). 80 tests pass in GitHub Actions
+Status: contract foundation + test suite (Milestone 0–1). 84 tests pass in GitHub Actions
 (unit, structural lint, consensus, integration, adversarial, runner smoke), and the Studionet
 workflow deploys the contract and drives the full case lifecycle against real validators.
 
@@ -34,6 +34,8 @@ provides three things an oracle or a centralised backend cannot:
 - `finalize_case` — after the 24-hour appeal window, funds are credited according to `award_bps`.
 - `judge_rule` — the judge (deployer address) can rule manually, including for `UNVERIFIABLE` cases
   or prompt-injection flags.
+- `settle_unresolved` — if the judge never rules an `UNVERIFIABLE` case, either party can unwind the
+  escrow (full refund) once the 14-day rescue window has passed, so funds cannot stay locked.
 - `withdraw` — each party pulls its own credit (pull payment).
 
 Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, plus `CANCELLED` through
@@ -144,8 +146,15 @@ Studionet's request budget.
 - A reward cannot be paid twice: `SETTLED` closes every payout path.
 - `UNVERIFIABLE` verdicts and `injection_suspected` flags never auto-settle; they require the judge.
 - `withdraw` only sends the caller's credit and zeroes it before emitting (anti re-entrancy).
-- Validators reject a leader whose verdict differs, whose score deviates by more than 15, whose award
-  deviates by more than 1500 bps, whose criteria differ, or whose injection flag differs.
+- Validators reject a leader whose verdict differs, whose award differs by a single basis point, whose
+  score deviates by more than 15, whose criteria differ, or whose injection flag differs.
+- The payout is bound exactly: the model's award is snapped to a fixed ladder for its verdict (0 or
+  2500 at provider fault, 5000 or 7500 shared, 9000 or 10000 at requester fault), so validators agree
+  on the same stored number that pays out.
+- An `UNVERIFIABLE` case the judge never rules can be refunded by either party after 14 days
+  (`settle_unresolved`); no path leaves the reward locked forever.
+- The contract defines no `__receive__` handler: GenVM rejects a bare value transfer, and nothing can
+  enter except through `open_case` (escrow) or `deposit_stake`.
 - Evidence is limited to 3 URLs, bounded length, http/https only.
 - Two calls in every live run are **supposed to fail**, and the explorer shows them as errors: a
   `judge_rule` signed by the non-judge wallet (rejected with `only judge`) and a `deliver_case` whose

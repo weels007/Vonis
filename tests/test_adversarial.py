@@ -50,12 +50,12 @@ def test_inconsistent_award_is_clamped_by_verdict(court, direct_vm, alice, bob):
         court, direct_vm, alice, bob, VERDICT_PROVIDER, 10000, score=20
     )
 
-    assert int(court.get_case_award_bps(case_id)) == 3000
+    assert int(court.get_case_award_bps(case_id)) == 2500
 
     direct_vm.warp("2100-06-01T00:00:00Z")
     court.finalize_case(case_id)
 
-    assert court.get_case_payouts(case_id) == "300|700|0"
+    assert court.get_case_payouts(case_id) == "250|750|0"
 
 
 def test_markdown_fenced_json_is_parsed(court, direct_vm, alice, bob):
@@ -127,7 +127,8 @@ def test_lowercase_verdict_is_normalized(court, direct_vm, alice, bob):
     court.adjudicate(case_id)
 
     assert court.get_case_verdict(case_id) == VERDICT_REQUESTER
-    assert int(court.get_case_award_bps(case_id)) == 9500
+    # 9500 is closer to the 9000 bucket, so the stored payout is exactly that.
+    assert int(court.get_case_award_bps(case_id)) == 9000
 
 
 def test_non_numeric_award_is_rejected(court, direct_vm, alice, bob):

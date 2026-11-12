@@ -105,25 +105,30 @@ block, no contract calls, no messages.
 }
 ```
 
-`award_bps` is the provider's share of the reward. Normalization enforces consistency:
+`award_bps` is the provider's share of the reward, and it is the number that pays out. Normalization
+snaps it onto a fixed ladder for the verdict, so two honest runs cannot disagree by a few basis points
+and then store one of them as the payout:
 
-- `PROVIDER_AT_FAULT` → award ≤ 3000
-- `REQUESTER_AT_FAULT` → award ≥ 9000
-- `SHARED` → 3001..8999
+- `PROVIDER_AT_FAULT` → 0 or 2500
+- `SHARED` → 5000 or 7500
+- `REQUESTER_AT_FAULT` → 9000 or 10000
+- `UNVERIFIABLE` → 0 (no payout until the judge rules)
 - the number of `criteria` entries always equals the number of rubric lines (pad `false`, truncate)
 
-This consistency is what makes the numbers validators compare meaningful, rather than raw LLM output
-that could say "provider at fault" while awarding 100%.
+The prompt asks for those exact values; anything else is snapped to the nearest bucket, with a tie
+going to the lower one. This is what makes the number validators compare meaningful, rather than raw
+LLM output that could say "provider at fault" while awarding 100%.
 
 ### What validators compare
 
 - `verdict` — identical.
-- `award_bps` — tolerance ±1500 bps.
-- `score` — tolerance ±15.
+- `award_bps` — identical (both sides normalized onto the ladder above).
+- `score` — tolerance ±15 (display only; it never moves money).
 - `criteria[].met` — identical per criterion, in order.
 - `injection_suspected` — identical.
 
-Not compared: `summary` (free text always differs).
+Not compared: `summary` and `criteria[].why` (free text always differs, and neither drives a payout or
+a later decision).
 
 These thresholds are a starting point, not dogma. Calibrate them in Studio mode with
 `analyze(runs=100)` on a test rubric; target ≥95% agreement. Below 90%, fix the prompt/rubric instead
@@ -140,11 +145,14 @@ of loosening tolerance.
 
 ## 7. Settlement and slashing
 
-- `PROVIDER_AT_FAULT` → `award_bps` (≤3000) to the provider, the rest refunded; provider stake is
-  slashed by `SLASH_BPS` (20% of the reward, capped at the stake) and credited to the requester.
-- `REQUESTER_AT_FAULT` → 100% (or the award, ≥9000) to the provider.
-- `SHARED` → split according to the award.
-- `UNVERIFIABLE` → no payment until the judge rules.
+- `PROVIDER_AT_FAULT` → the ladder award (0 or 2500 bps) to the provider, the rest refunded; the
+  provider stake is slashed by `SLASH_BPS` (20% of the reward, capped at the stake) and credited to
+  the requester.
+- `REQUESTER_AT_FAULT` → 9000 or 10000 bps to the provider.
+- `SHARED` → 5000 or 7500 bps to the provider.
+- `UNVERIFIABLE` — the judge rules by hand. If the judge never does, either party can call
+  `settle_unresolved` after `RESCUE_WINDOW` (14 days) and the reward is refunded in full, without a
+  score penalty, so escrow can never stay locked forever.
 
 `withdraw_stake` is blocked while an agent has active cases. `deposit_stake` is only for registered
 agents.
@@ -166,8 +174,8 @@ Direct mode (in-memory, CI):
 
 - Structural lint (`tests/test_lint.py`), no SDK: the `Depends` header exists, storage uses GenVM
   types (`TreeMap`, not `dict`), public methods do not call `gl.nondet`, `leader_fn` writes no
-  storage and emits no messages, `Case` keeps the fields the frontend reads, and `__receive__` is
-  payable.
+  storage and emits no messages, `Case` keeps the fields the frontend reads, no public method starts
+  with `__` (the schema generator rejects those), and `TreeMap.get` is never called without a default.
 - Registry and stake: registration, deposit, withdrawal, blocking while cases are active.
 - State machine: every transition, per-role access, deadlines, invalid URLs, URL count.
 - Settlement: fast path, cancel, full/partial verdicts, slashing, double finalize.
@@ -234,7 +242,9 @@ quality, fund safety, or product viability.
 - Value transfers: `@gl.public.write.payable`, pull payments, external `emit_transfer`.
 - Flat storage (`TreeMap` + `@allow_storage` dataclasses), sized integers (`u256`, `i32`).
 - Transaction context: `sender_address`, `origin_address` (stored per case), transaction timestamp.
-- `__receive__` special method to reject stray value with no owner.
+- `__receive__` is deliberately absent: GenVM rejects a bare value transfer when there is no receive
+  handler, so value can only arrive through a payable method, and the schema generator (which fails
+  on public names starting with `__`) works again.
 - Direct-mode tests with `mock_web`/`mock_llm` + `run_validator`, executed in CI.
 
 **Worth adding, in priority order**

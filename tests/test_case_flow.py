@@ -90,12 +90,11 @@ def test_case_records_origin_address(court, direct_vm, alice, bob, carol):
     assert origin != requester_hex
 
 
-def test_stray_value_is_rejected(court, direct_vm, carol):
-    direct_vm.sender = carol
-    direct_vm.value = 500
-    with direct_vm.expect_revert("use open_case or deposit_stake"):
-        court.__receive__()
-    direct_vm.value = 0
+def test_open_case_requires_a_reward(court, direct_vm, alice, bob):
+    register_provider(court, direct_vm, bob)
+
+    with direct_vm.expect_revert("reward required"):
+        open_case(court, direct_vm, alice, bob, reward=0)
 
 
 def test_accept_case_only_by_provider(court, direct_vm, alice, bob):

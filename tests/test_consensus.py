@@ -28,9 +28,18 @@ def test_validator_accepts_small_score_difference(court, direct_vm, alice, bob):
     adjudicated_case(court, direct_vm, alice, bob, VERDICT_REQUESTER, 10000, score=95)
 
     direct_vm.clear_mocks()
-    mock_verdict(direct_vm, VERDICT_REQUESTER, 9200, score=88)
+    mock_verdict(direct_vm, VERDICT_REQUESTER, 10000, score=88)
 
     assert direct_vm.run_validator() is True
+
+
+def test_validator_rejects_award_that_snaps_to_another_bucket(court, direct_vm, alice, bob):
+    adjudicated_case(court, direct_vm, alice, bob, VERDICT_REQUESTER, 10000, score=95)
+
+    direct_vm.clear_mocks()
+    mock_verdict(direct_vm, VERDICT_REQUESTER, 9100, score=95)
+
+    assert direct_vm.run_validator() is False
 
 
 def test_validator_rejects_large_score_gap(court, direct_vm, alice, bob):
