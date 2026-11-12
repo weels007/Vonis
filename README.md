@@ -129,6 +129,10 @@ allocation for `withdraw` (see the GenLayer v0.6 fee documentation).
 For a step-by-step deploy with the project's Studio test wallets (keystore import, schema check,
 smoke case), see [DEPLOY.md](DEPLOY.md).
 
+Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`, which deploys,
+checks that code really exists at the reported address (a failed deploy otherwise leaves only a
+Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet.
+
 ## Security properties enforced by tests
 
 - A reward cannot be paid twice: `SETTLED` closes every payout path.

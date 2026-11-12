@@ -192,10 +192,14 @@ Studio mode (later, needs localnet/Studionet):
 
 ## 10. Deployment
 
-1. Pin the SDK `Depends` hash on the first line of `contracts/vonis.py` to the CLI version in use.
+1. Pin the SDK runner hash on the first line of `contracts/vonis.py`: `py-genlayer:latest` resolves to
+   the GenVM test runner, which nodes reject outside debug mode (`invalid_contract`).
+   `scripts/runner-hash.py` prints the runner hashes a GenVM release bundle ships.
 2. Run `genvm-lint check contracts/vonis.py` (part of the CLI) before deploying.
 3. `genlayer network set studionet`, then `genlayer deploy --contract contracts/vonis.py`.
-4. Verify `genlayer schema <addr>`, read `get_case_count()`, and run one small case end to end.
+4. Verify the deployment before using it: read the code back at the reported address
+   (`gen_getContractCode`) and call a view. A deploy whose execution failed still leaves a Ghost at
+   the address, where writes succeed as no-ops, so a successful write is not proof of a contract.
 5. For Bradbury: confirm chain id 4221, the faucet, and estimate write fees including
    `messageAllocations` for `withdraw`.
 6. Record the address, network, commit hash and measured costs here.
