@@ -71,6 +71,10 @@ genlayer deploy --contract contracts/vonis.py
 ```
 
 Alamat deployer menjadi hakim. Catat alamat kontrak di `.env` lalu di `docs/ARSITEKTUR.md`.
+
+Header `Depends` di kontrak memakai `py-genlayer:latest` agar selaras dengan tooling pengembangan
+dan CI. Sebelum deploy produksi, pin hash SDK yang dikeluarkan CLI/Studio versi yang Anda pakai
+supaya build kontrak reproducible.
 Untuk Bradbury, siapkan wallet + faucet, dan estimasi fee transaksi tulis termasuk alokasi pesan
 untuk `withdraw` (lihat dokumentasi fee v0.6 GenLayer).
 
