@@ -1,9 +1,25 @@
 import type { CaseView } from "../lib/types";
 import { formatGen, percent, verdictLabel, verdictTone } from "../lib/format";
 
-type Props = { c: CaseView };
+type Props = { c: CaseView | null };
 
 export default function ConsensusPreview({ c }: Props) {
+  if (!c) {
+    return (
+      <div className="verdict-card consensus-preview empty-verdict">
+        <div className="verdict-top">
+          <div>
+            <span className="eyebrow">AI consensus verdict</span>
+            <h3 className="chip muted">No verdict on chain yet</h3>
+          </div>
+        </div>
+        <p className="muted">
+          The first settled case appears here with its score, award and per-criterion reasons.
+        </p>
+      </div>
+    );
+  }
+
   const color =
     c.score >= 70 ? "var(--ok)" : c.score >= 40 ? "var(--warn)" : "var(--danger)";
 

@@ -4,7 +4,6 @@ import Toast from "./components/Toast";
 import TxPanel from "./components/TxPanel";
 import { useTransactions } from "./hooks/useTransactions";
 import type { TxItem } from "./hooks/useTransactions";
-import { DEMO_CASES } from "./lib/demo";
 import { friendlyError, rawError } from "./lib/errors";
 import {
   CONTRACT_ADDRESS,
@@ -57,8 +56,7 @@ export default function App() {
   const route = useRoute();
   const [account, setAccount] = useState("");
   const [chainId, setChainId] = useState<number | null>(null);
-  const [cases, setCases] = useState<CaseView[]>(IS_CONFIGURED ? [] : DEMO_CASES);
-  const [demo, setDemo] = useState(!IS_CONFIGURED);
+  const [cases, setCases] = useState<CaseView[]>([]);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [credit, setCredit] = useState(0);
@@ -72,8 +70,7 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     if (!IS_CONFIGURED) {
-      setCases(DEMO_CASES);
-      setDemo(true);
+      setCases([]);
       return;
     }
 
@@ -91,12 +88,10 @@ export default function App() {
         }
       }
       setCases(list);
-      setDemo(false);
       setError("");
     } catch (err) {
+      // Keep the last good list: the app never invents data.
       setError(friendlyError(err));
-      setDemo(true);
-      setCases(DEMO_CASES);
     }
   }, []);
 
@@ -269,16 +264,9 @@ export default function App() {
         {error && <div className="toast error error-banner">{error}</div>}
 
         {route.name === "landing" ? (
-          <Landing demoCase={DEMO_CASES[0]} />
+          <Landing verdictCase={cases.find((item) => item.verdict) ?? null} />
         ) : (
           <>
-            {demo && (
-              <div className="banner">
-                Demo data — the contract address in <code>src/lib/genlayer.ts</code> is empty or
-                invalid, so the live contract cannot be read.
-              </div>
-            )}
-
             {route.name === "cases" && <CasesPage cases={cases} />}
 
             {route.name === "case" && (

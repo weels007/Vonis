@@ -2,9 +2,9 @@ import ConsensusPreview from "../components/ConsensusPreview";
 import Logo from "../components/Logo";
 import type { CaseView } from "../lib/types";
 
-type Props = { demoCase: CaseView };
+type Props = { verdictCase: CaseView | null };
 
-export default function Landing({ demoCase }: Props) {
+export default function Landing({ verdictCase }: Props) {
   return (
     <div className="landing">
       <section className="hero">
@@ -37,7 +37,7 @@ export default function Landing({ demoCase }: Props) {
         </div>
         <div className="hero-stats">
           <div>
-            <strong>79</strong>
+            <strong>84</strong>
             <span>contract tests passing</span>
           </div>
           <div>
@@ -122,14 +122,15 @@ export default function Landing({ demoCase }: Props) {
             read exactly why money moved.
           </p>
           <p className="muted">
-            Example case below: the hero shipped without a CTA and the layout broke on mobile, so
-            the provider keeps 30% of the reward and the rest is refunded.
+            {verdictCase
+              ? "The card below is the latest verdict stored in the contract: its score, the share of the reward awarded, and the reason for each criterion."
+              : "No verdict has been written to the contract yet. The first settled case will show its score, award and per-criterion reasons here."}
           </p>
           <a className="btn" href="#/cases">
             Browse the case explorer
           </a>
         </div>
-        <ConsensusPreview c={demoCase} />
+        <ConsensusPreview c={verdictCase} />
       </section>
 
       <section className="section">
