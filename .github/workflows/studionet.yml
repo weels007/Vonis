@@ -1,0 +1,42 @@
+name: studionet
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_adjudication:
+        description: "Run the real LLM dispute path (takes several minutes)"
+        type: boolean
+        default: true
+
+  push:
+    branches: [main]
+
+concurrency:
+  group: studionet-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-test:
+    # Manual runs always execute; pushes only when the commit asks for it.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[studionet]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Deploy and test on Studionet
+        env:
+          TEST1_KEYSTORE: ${{ secrets.VONIS_TESTER1_KEYSTORE || secrets.VONIS_KEYSTORE_JSON || secrets.CLAUSEGUARD_TESTER1_KEYSTORE }}
+          TEST1_PASSWORD: ${{ secrets.VONIS_TESTER1_PASSWORD || secrets.VONIS_KEYSTORE_PASSWORD || secrets.CLAUSEGUARD_TESTER1_PASSWORD }}
+          TEST2_KEYSTORE: ${{ secrets.VONIS_TESTER2_KEYSTORE || secrets.CLAUSEGUARD_TESTER2_KEYSTORE }}
+          TEST2_PASSWORD: ${{ secrets.VONIS_TESTER2_PASSWORD || secrets.CLAUSEGUARD_TESTER2_PASSWORD }}
+          RUN_ADJUDICATION: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_adjudication) && '1' || '0' }}
+        run: node scripts/studionet.mjs
