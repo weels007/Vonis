@@ -5,7 +5,8 @@
  * is written to disk. Set RUN_ADJUDICATION=1 to include the real LLM dispute
  * path, which can take several minutes.
  */
-import { readFileSync, appendFileSync } from "node:fs";
+import { existsSync, readFileSync, appendFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { Wallet } from "ethers";
 import { createAccount, createClient, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
@@ -75,11 +76,40 @@ function summary() {
   }
 }
 
-function wallet(prefix) {
-  const json = process.env[`${prefix}_KEYSTORE`];
-  const password = process.env[`${prefix}_PASSWORD`];
-  if (!json || !password) return null;
-  return Wallet.fromEncryptedJson(json, password);
+const WALLET_DIR = process.env.WALLET_DIR ?? "../wallet";
+const WALLET_NAMES = { TEST1: "tester1", TEST2: "tester2" };
+
+function decodeKeystore(raw) {
+  const text = String(raw).trim();
+  if (text.startsWith("{")) return text;
+  // A secret may hold the keystore as base64 rather than raw JSON.
+  return Buffer.from(text, "base64").toString("utf8");
+}
+
+async function wallet(prefix) {
+  const name = WALLET_NAMES[prefix] ?? prefix.toLowerCase();
+  const envJson = process.env[`${prefix}_KEYSTORE`];
+  const envPassword = process.env[`${prefix}_PASSWORD`];
+  if (envJson && envPassword) {
+    return {
+      wallet: await Wallet.fromEncryptedJson(decodeKeystore(envJson), envPassword),
+      source: "secret",
+    };
+  }
+
+  // A local run can use the `wallet` repository beside this one, so the real
+  // tester wallets drive the suite without any GitHub secret.
+  const dir = resolve(WALLET_DIR);
+  const keystorePath = join(dir, `${name}-keystore.json`);
+  const passwordPath = join(dir, `${name}.password`);
+  if (!existsSync(keystorePath) || !existsSync(passwordPath)) return null;
+  return {
+    wallet: await Wallet.fromEncryptedJson(
+      readFileSync(keystorePath, "utf8"),
+      readFileSync(passwordPath, "utf8").trim()
+    ),
+    source: keystorePath,
+  };
 }
 
 function clientFor(account) {
@@ -324,12 +354,17 @@ async function main() {
   const w2 = await wallet("TEST2");
 
   if (!w1) {
-    fail("wallets", "TEST1_KEYSTORE / TEST1_PASSWORD are not configured");
+    fail(
+      "wallets",
+      `TEST1_KEYSTORE / TEST1_PASSWORD are not configured and no keystore was found in ${resolve(
+        WALLET_DIR
+      )}`
+    );
     summary();
     process.exit(1);
   }
 
-  const account1 = createAccount(w1.privateKey);
+  const account1 = createAccount(w1.wallet.privateKey);
   const c1 = clientFor(account1);
 
   const publicClient = createPublicClient({
@@ -337,19 +372,28 @@ async function main() {
     transport: http(studionet.rpcUrls.default.http[0]),
   });
 
-  let account2 = w2 ? createAccount(w2.privateKey) : null;
+  let account2 = w2 ? createAccount(w2.wallet.privateKey) : null;
+  let providerSource = w2 ? w2.source : null;
   if (!account2) {
-    // Without the TESTER2 secrets the two-party lifecycle cannot run, so try a
+    // Without the second wallet the two-party lifecycle cannot run, so try a
     // throwaway provider key funded from the Studio simulator instead.
     const candidate = createAccount(generatePrivateKey());
     if (await fundSimulatedAccount(publicClient, candidate.address)) {
       account2 = candidate;
-      log("note: TEST2 secrets are not configured; funded a throwaway provider wallet");
+      providerSource = "throwaway, funded by the simulator";
+      log(
+        `note: no TEST2 wallet in secrets or ${resolve(
+          WALLET_DIR
+        )}; funded a throwaway provider wallet`
+      );
     }
   }
   const c2 = account2 ? clientFor(account2) : null;
 
-  pass("wallets", `${account1.address}${account2 ? " + " + account2.address : " (single wallet)"}`);
+  pass(
+    "wallets",
+    `${account1.address} (${w1.source})${account2 ? " + " + account2.address + " (" + providerSource + ")" : " (single wallet)"}`
+  );
 
   const balance = await publicClient.getBalance({ address: account1.address });
   pass("deployer balance", `${formatEther(balance)} GEN`);
@@ -457,7 +501,7 @@ async function main() {
   if (!c2) {
     skip(
       "case lifecycle",
-      "second wallet unavailable: add VONIS_TESTER2_KEYSTORE / VONIS_TESTER2_PASSWORD (or CLAUSEGUARD_TESTER2_*) and sim_fundAccount did not fund a throwaway key"
+      "second wallet unavailable: add VONIS_TESTER2_KEYSTORE / VONIS_TESTER2_PASSWORD (or CLAUSEGUARD_TESTER2_*), or put tester2-keystore.json and tester2.password in ../wallet, and sim_fundAccount did not fund a throwaway key"
     );
     summary();
     process.exit(failures > 0 ? 1 : 0);

@@ -69,9 +69,9 @@ jobs:
 
       - name: Deploy and test on Studionet
         env:
-          TEST1_KEYSTORE: ${{ secrets.VONIS_TESTER1_KEYSTORE || secrets.VONIS_KEYSTORE_JSON || secrets.CLAUSEGUARD_TESTER1_KEYSTORE }}
-          TEST1_PASSWORD: ${{ secrets.VONIS_TESTER1_PASSWORD || secrets.VONIS_KEYSTORE_PASSWORD || secrets.CLAUSEGUARD_TESTER1_PASSWORD }}
-          TEST2_KEYSTORE: ${{ secrets.VONIS_TESTER2_KEYSTORE || secrets.CLAUSEGUARD_TESTER2_KEYSTORE }}
-          TEST2_PASSWORD: ${{ secrets.VONIS_TESTER2_PASSWORD || secrets.CLAUSEGUARD_TESTER2_PASSWORD }}
+          TEST1_KEYSTORE: ${{ secrets.VONIS_TESTER1_KEYSTORE || secrets.VONIS_TEST1_KEYSTORE || secrets.VONIS_KEYSTORE_JSON || secrets.TESTER1_KEYSTORE || secrets.CLAUSEGUARD_TESTER1_KEYSTORE }}
+          TEST1_PASSWORD: ${{ secrets.VONIS_TESTER1_PASSWORD || secrets.VONIS_TEST1_PASSWORD || secrets.VONIS_KEYSTORE_PASSWORD || secrets.TESTER1_PASSWORD || secrets.CLAUSEGUARD_TESTER1_PASSWORD }}
+          TEST2_KEYSTORE: ${{ secrets.VONIS_TESTER2_KEYSTORE || secrets.VONIS_TEST2_KEYSTORE || secrets.TESTER2_KEYSTORE || secrets.CLAUSEGUARD_TESTER2_KEYSTORE }}
+          TEST2_PASSWORD: ${{ secrets.VONIS_TESTER2_PASSWORD || secrets.VONIS_TEST2_PASSWORD || secrets.TESTER2_PASSWORD || secrets.CLAUSEGUARD_TESTER2_PASSWORD }}
           RUN_ADJUDICATION: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_adjudication) && '1' || '0' }}
         run: node scripts/studionet.mjs

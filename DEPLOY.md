@@ -95,8 +95,10 @@ Receipt polling waits 10 seconds between requests (`POLL_INTERVAL` in the script
 roughly thirty requests a minute, and polling faster is what makes a live run slow and flaky.
 
 - Secrets: `VONIS_TESTER1_KEYSTORE` / `VONIS_TESTER1_PASSWORD` (aliases `VONIS_KEYSTORE_JSON`,
-  `CLAUSEGUARD_TESTER1_*`). `TESTER2` is optional; without it the script funds a throwaway provider
-  key from the Studio simulator.
+  `CLAUSEGUARD_TESTER1_*`). `TESTER2` is optional. Any wallet can also come from the `wallet`
+  repository beside this one (`../wallet/tester1-keystore.json` + `tester1.password`, same for
+  `tester2`; override the folder with `WALLET_DIR`), and a secret may hold the keystore as raw JSON or
+  base64. Without a second wallet the script funds a throwaway provider key from the Studio simulator.
 - Studionet state is temporary, so every run deploys its own contract and prints the address in the
   job summary. Do not treat that address as permanent; it is only valid while the node keeps the
   state. The frontend hard-sets the latest one in `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`); update
