@@ -91,7 +91,7 @@ export async function ensureNetwork(): Promise<void> {
           chainId: hex,
           chainName: CHAIN.name,
           nativeCurrency: CHAIN.nativeCurrency,
-          rpcUrls: CHAIN.rpcUrls.default.http,
+          rpcUrls: [...CHAIN.rpcUrls.default.http],
           blockExplorerUrls: CHAIN.blockExplorers?.default?.url
             ? [CHAIN.blockExplorers.default.url]
             : [],
