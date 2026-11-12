@@ -162,12 +162,23 @@ kasus `CANCELLED` tidak mengubah reputasi. Skor dibatasi 0..100.
 
 Direct mode (in-memory, CI):
 
+- Lint struktural (`tests/test_lint.py`), tanpa SDK: header `Depends` ada, storage memakai tipe
+  GenVM (`TreeMap`, bukan `dict`), method publik tidak memanggil `gl.nondet`, `leader_fn` tidak
+  menulis storage/emit pesan, `Case` menyimpan field yang dibaca frontend, dan `__receive__`
+  payable.
 - Registry dan stake: registrasi, deposit, penarikan, blokir saat ada kasus aktif.
 - State machine: semua transisi, akses per peran, tenggat, URL tidak valid, jumlah URL.
 - Settlement: jalur cepat, cancel, verdict penuh/sebagian, slash, double finalize.
 - Kegagalan: HTTP 500 pada spesifikasi, verdict tidak dikenal, non-party, adjudikasi tanpa sengketa.
 - Konsensus: `run_validator()` setuju/tolak untuk verdict, skor, award, kriteria, flag injeksi, dan
   leader yang error.
+- Adversarial (`tests/test_adversarial.py`): bukti berisi instruksi (dikuarantina menjadi
+  `UNVERIFIABLE`), award tidak konsisten dengan verdict (di-clamp), JSON berpagar markdown,
+  trailing comma, array JSON, verdict alias/lowercase, award non-numerik, kriteria kosong/lebih
+  dari 8, evidence kebesaran, dan kredit milik pihak lain.
+- Integration (`tests/test_integration.py`): dua kasus penuh berurutan (jalur cepat + sengketa),
+  invariant `escrow_total`/`credits_total`/`stakes_total`, status `SETTLED`, dan payload
+  `get_case_json`.
 
 Studio mode (menyusul, butuh localnet/Studionet):
 

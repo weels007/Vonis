@@ -24,36 +24,36 @@ def register_provider(court, direct_vm, provider, handle="agent-bob", stake=0):
         direct_vm.value = 0
 
 
-def open_case(court, direct_vm, requester, provider, reward=REWARD, spec_url=SPEC_URL):
+def open_case(court, direct_vm, requester, provider, reward=REWARD, spec_url=SPEC_URL, rubric=RUBRIC):
     direct_vm.sender = requester
     direct_vm.value = reward
     case_id = court.open_case(
         provider,
         "Landing page build",
         spec_url,
-        RUBRIC,
+        rubric,
         DELIVERY_DEADLINE,
     )
     direct_vm.value = 0
     return case_id
 
 
-def accepted_case(court, direct_vm, requester, provider, reward=REWARD):
-    case_id = open_case(court, direct_vm, requester, provider, reward)
+def accepted_case(court, direct_vm, requester, provider, reward=REWARD, rubric=RUBRIC):
+    case_id = open_case(court, direct_vm, requester, provider, reward, SPEC_URL, rubric)
     direct_vm.sender = provider
     court.accept_case(case_id)
     return case_id
 
 
-def delivered_case(court, direct_vm, requester, provider, reward=REWARD):
-    case_id = accepted_case(court, direct_vm, requester, provider, reward)
+def delivered_case(court, direct_vm, requester, provider, reward=REWARD, rubric=RUBRIC):
+    case_id = accepted_case(court, direct_vm, requester, provider, reward, rubric)
     direct_vm.sender = provider
     court.deliver_case(case_id, EVIDENCE_URL)
     return case_id
 
 
-def disputed_case(court, direct_vm, requester, provider, reward=REWARD):
-    case_id = delivered_case(court, direct_vm, requester, provider, reward)
+def disputed_case(court, direct_vm, requester, provider, reward=REWARD, rubric=RUBRIC):
+    case_id = delivered_case(court, direct_vm, requester, provider, reward, rubric)
     direct_vm.sender = requester
     court.raise_dispute(case_id, CLAIM)
     return case_id
@@ -72,7 +72,7 @@ def verdict_json(verdict, award_bps, score=90, met=(True, True), injection=False
     )
 
 
-def mock_sources(direct_vm, brief_status=200, evidence_status=200):
+def mock_sources(direct_vm, brief_status=200, evidence_status=200, evidence_body=None):
     direct_vm.mock_web(
         r"example\.com/brief",
         {
@@ -82,7 +82,12 @@ def mock_sources(direct_vm, brief_status=200, evidence_status=200):
     )
     direct_vm.mock_web(
         r"example\.com/delivery",
-        {"status": evidence_status, "body": "Landing page with hero CTA and responsive mobile layout."},
+        {
+            "status": evidence_status,
+            "body": evidence_body
+            if evidence_body is not None
+            else "Landing page with hero CTA and responsive mobile layout.",
+        },
     )
 
 

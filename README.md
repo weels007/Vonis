@@ -8,7 +8,7 @@ terhadap kriteria penerimaan, lalu **diverifikasi ulang secara independen oleh v
 Yang memindahkan uang selalu kode deterministik, bukan teks LLM.
 
 Status: fondasi kontrak + test suite (Milestone 0–1). Seluruh test hijau di GitHub Actions
-(54 test direct mode, termasuk smoke test runner). Belum di-deploy.
+(75 test direct mode: unit, lint struktural, integration, adversarial, smoke runner). Belum di-deploy.
 
 ## Kenapa GenLayer
 
@@ -64,6 +64,14 @@ mengunduh SDK yang sesuai dengan header `Depends` kontrak (butuh koneksi interne
 `withdraw` sengaja tidak diuji di direct mode karena mode itu tidak mendukung pesan keluar;
 pembayaran diuji di Studio mode nanti. Yang diuji di sini adalah ledger kredit dan seluruh
 aritmetika settlement.
+
+Jenis test:
+
+- `tests/test_lint.py` — lint struktural kontrak (tanpa SDK): tipe storage, nondet hanya di blok
+  nondeterministik, `leader_fn` tanpa efek samping, field `Case` untuk frontend.
+- `tests/test_adversarial.py` — bukti berisi instruksi, award tidak konsisten, JSON rusak/berpagar,
+  verdict alias, kriteria kosong/berlebih, evidence kebesaran, kredit milik pihak lain.
+- `tests/test_integration.py` — dua kasus penuh berurutan dan invariant akuntansi.
 
 ## Deploy (ringkas)
 
