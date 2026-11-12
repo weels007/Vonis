@@ -124,10 +124,36 @@ function leaderDetail(leader) {
   for (const [key, value] of Object.entries(texts)) {
     if (value === undefined || value === null) continue;
     const text = String(value).replace(/\s+/g, " ").trim();
-    if (text) parts.push(`${key}=${text.slice(0, 400)}`);
+    if (text) parts.push(`${key}=${text.slice(0, 1200)}`);
   }
   if (parts.length === 0) parts.push(`keys=${Object.keys(leader).join(",")}`);
   return parts.join(" ");
+}
+
+function describeError(error) {
+  // viem wraps RPC failures in a cause chain; keep the whole story in the log.
+  const seen = new Set();
+  const parts = [];
+  let current = error;
+  while (current && !seen.has(current) && parts.length < 6) {
+    seen.add(current);
+    const text = [current?.shortMessage, current?.message, current?.details]
+      .filter((value) => typeof value === "string" && value.trim())
+      .join(" ")
+      .trim();
+    if (text) parts.push(text);
+    current = current?.cause;
+  }
+  const data = error?.data ?? error?.cause?.data;
+  if (data) {
+    try {
+      parts.push(typeof data === "string" ? data : JSON.stringify(data));
+    } catch {
+      parts.push(String(data));
+    }
+  }
+  const text = parts.join(" | ");
+  return (text || String(error)).slice(0, 1800);
 }
 
 async function wait(client, hash, label) {
@@ -203,7 +229,7 @@ async function writeExpectFailure(client, address, functionName, args = [], valu
     const execution = String(receipt?.txExecutionResultName ?? "UNKNOWN");
     return { failed: execution === "FINISHED_WITH_ERROR", detail: execution };
   } catch (error) {
-    return { failed: true, detail: String(error?.message ?? error).slice(0, 160) };
+    return { failed: true, detail: describeError(error).slice(0, 160) };
   }
 }
 
@@ -250,7 +276,7 @@ async function fundSimulatedAccount(publicClient, address) {
     try {
       await publicClient.request({ method: "sim_fundAccount", params: [address, amount] });
     } catch (error) {
-      log(`WARN sim_fundAccount failed: ${String(error?.message ?? error).slice(0, 160)}`);
+      log(`WARN sim_fundAccount failed: ${describeError(error).slice(0, 160)}`);
       return false;
     }
     for (let attempt = 0; attempt < 6; attempt += 1) {
@@ -313,7 +339,7 @@ async function main() {
     const methods = Object.keys(schema?.methods ?? {});
     pass("schema (off-node)", `${methods.length} methods`);
   } catch (error) {
-    log(`WARN schema (off-node): ${String(error?.message ?? error).slice(0, 300)}`);
+    log(`WARN schema (off-node): ${describeError(error).slice(0, 300)}`);
   }
 
   let address = null;
@@ -344,7 +370,7 @@ async function main() {
     const failed = deployHash
       ? await c1.getTransaction({ hash: deployHash }).catch(() => null)
       : null;
-    fail("deploy", `${String(error?.message ?? error)} | ${describeTx(failed)}`);
+    fail("deploy", `${describeError(error)} | ${describeTx(failed)}`);
     summary();
     process.exit(1);
   }
@@ -359,7 +385,7 @@ async function main() {
     if (Number(count) !== 0) fail("fresh contract", "case_count is not zero");
   } catch (error) {
     const failed = await c1.getTransaction({ hash: deployHash }).catch(() => null);
-    fail("get_case_count", `${String(error?.message ?? error)} | ${describeTx(failed)}`);
+    fail("get_case_count", `${describeError(error)} | ${describeTx(failed)}`);
     summary();
     process.exit(1);
   }
@@ -368,7 +394,7 @@ async function main() {
     const judge = await read(c1, address, "get_judge");
     pass("get_judge", String(judge));
   } catch (error) {
-    fail("get_judge", String(error?.message ?? error));
+    fail("get_judge", describeError(error));
   }
 
   // Registry: both agents register, then read their profile back. A write to an
@@ -381,7 +407,7 @@ async function main() {
     }
     pass("register_agent(requester)", handle);
   } catch (error) {
-    fail("register_agent(requester)", String(error?.message ?? error));
+    fail("register_agent(requester)", describeError(error));
   }
 
   if (c2) {
@@ -393,7 +419,7 @@ async function main() {
       }
       pass("register_agent(provider)", handle);
     } catch (error) {
-      fail("register_agent(provider)", String(error?.message ?? error));
+      fail("register_agent(provider)", describeError(error));
     }
   }
 
@@ -401,7 +427,7 @@ async function main() {
     const score = await read(c1, address, "get_agent_score", [account1.address]);
     pass("get_agent_score", String(score));
   } catch (error) {
-    fail("get_agent_score", String(error?.message ?? error));
+    fail("get_agent_score", describeError(error));
   }
 
   if (!c2) {
@@ -428,7 +454,7 @@ async function main() {
     const stake = await read(c1, address, "get_agent_stake", [account1.address]);
     pass("deposit_stake", String(stake));
   } catch (error) {
-    fail("deposit_stake", String(error?.message ?? error));
+    fail("deposit_stake", describeError(error));
   }
 
   // Case 1: fast path.
@@ -446,7 +472,7 @@ async function main() {
     if (caseCount !== 1) throw new Error(`get_case_count is ${caseCount} after open_case`);
     pass("open_case", caseId);
   } catch (error) {
-    fail("open_case", String(error?.message ?? error));
+    fail("open_case", describeError(error));
   }
 
   if (caseId) {
@@ -454,14 +480,14 @@ async function main() {
       await write(c2, address, "accept_case", [caseId]);
       pass("accept_case");
     } catch (error) {
-      fail("accept_case", String(error?.message ?? error));
+      fail("accept_case", describeError(error));
     }
 
     try {
       await write(c2, address, "deliver_case", [caseId, EVIDENCE_URL]);
       pass("deliver_case");
     } catch (error) {
-      fail("deliver_case", String(error?.message ?? error));
+      fail("deliver_case", describeError(error));
     }
 
     // Adversarial: non-judge cannot rule.
@@ -473,7 +499,7 @@ async function main() {
       await write(c1, address, "accept_delivery", [caseId]);
       pass("accept_delivery");
     } catch (error) {
-      fail("accept_delivery", String(error?.message ?? error));
+      fail("accept_delivery", describeError(error));
     }
 
     try {
@@ -482,7 +508,7 @@ async function main() {
       if (json.status !== "SETTLED") fail("fast path settled", json.status);
       if (json.verdict !== "ACCEPTED") fail("fast path verdict", json.verdict);
     } catch (error) {
-      fail("get_case_json", String(error?.message ?? error));
+      fail("get_case_json", describeError(error));
     }
 
     try {
@@ -490,7 +516,7 @@ async function main() {
       const credit = await read(c1, address, "get_credit_of", [account2.address]);
       pass("withdraw", `credit now ${credit}`);
     } catch (error) {
-      fail("withdraw", String(error?.message ?? error));
+      fail("withdraw", describeError(error));
     }
   }
 
@@ -508,7 +534,7 @@ async function main() {
     pass("cancel_case", `${json.status}/${json.verdict}`);
     if (json.status !== "SETTLED") fail("cancel settled", json.status);
   } catch (error) {
-    fail("cancel_case", String(error?.message ?? error));
+    fail("cancel_case", describeError(error));
   }
 
   // Adversarial: oversized evidence.
@@ -528,7 +554,7 @@ async function main() {
     if (oversized.failed) pass("oversized evidence rejected", oversized.detail);
     else fail("oversized evidence rejected", "call succeeded");
   } catch (error) {
-    fail("oversized evidence", String(error?.message ?? error));
+    fail("oversized evidence", describeError(error));
   }
 
   // Dispute path with real validators. Optional because it costs minutes.
@@ -577,7 +603,7 @@ async function main() {
       const settled = JSON.parse(String(await read(c1, address, "get_case_json", ["case-3"])));
       pass("judge_rule", `${settled.status}/${settled.verdict}`);
     } catch (error) {
-      fail("dispute path", String(error?.message ?? error));
+      fail("dispute path", describeError(error));
     }
   } else {
     skip("real adjudication", "set RUN_ADJUDICATION=1 to run the LLM dispute path");
@@ -588,7 +614,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  fail("unexpected", String(error?.message ?? error));
+  fail("unexpected", describeError(error));
   summary();
   process.exit(1);
 });

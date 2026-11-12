@@ -113,3 +113,29 @@ def test_receive_handler_is_payable():
                 assert "gl.public.write.payable" in _decorators(stmt)
                 return
     raise AssertionError("__receive__ not found")
+
+
+def test_storage_maps_are_read_with_a_default():
+    """GenVM's TreeMap.get requires a default argument.
+
+    Direct mode tolerates ``self.agents.get(who)``, but the node raises on it,
+    so storage reads use membership plus indexing instead. This guard keeps a
+    one-argument ``.get()`` from slipping back in.
+    """
+    for node in ast.walk(_tree()):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not isinstance(func, ast.Attribute) or func.attr != "get":
+            continue
+        owner = func.value
+        if not isinstance(owner, ast.Attribute) or owner.attr not in (
+            "cases",
+            "agents",
+            "credits",
+        ):
+            continue
+        if len(node.args) < 2 and not node.keywords:
+            raise AssertionError(
+                "TreeMap.get without a default at contracts/vonis.py:" + str(node.lineno)
+            )

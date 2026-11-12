@@ -140,6 +140,18 @@ def _addr_hex(addr: Address) -> str:
     return str(addr)
 
 
+def _as_address(value) -> Address:
+    """Normalise an address argument to the type storage keys use.
+
+    The client sends a hex string, while ``gl.message`` already carries an
+    ``Address``; storage keys are ``Address`` values, so convert at the
+    boundary and leave anything that is not a string untouched.
+    """
+    if isinstance(value, str):
+        return Address(value)
+    return value
+
+
 def _is_http(url: str) -> bool:
     return url.startswith("http://") or url.startswith("https://")
 
@@ -426,19 +438,19 @@ class Vonis(gl.Contract):
     # -- internal helpers ---------------------------------------------------
 
     def _case(self, case_id: str) -> Case:
-        case = self.cases.get(case_id)
+        case = self.cases[case_id] if case_id in self.cases else None
         _req(case is not None, "case not found")
         return case
 
     def _agent(self, who: Address) -> Agent:
-        agent = self.agents.get(who)
+        agent = self.agents[who] if who in self.agents else None
         _req(agent is not None and agent.handle != "", "agent not registered")
         return agent
 
     def _credit(self, who: Address, amount: u256) -> None:
         if int(amount) == 0:
             return
-        current = self.credits.get(who)
+        current = self.credits[who] if who in self.credits else None
         if current is None:
             current = u256(0)
         self.credits[who] = u256(int(current) + int(amount))
@@ -452,7 +464,7 @@ class Vonis(gl.Contract):
         provider_cut = u256(int(reward) * int(award_bps) // BASIS_POINTS)
         requester_cut = reward - provider_cut
 
-        agent = self.agents.get(case.provider)
+        agent = self.agents[case.provider] if case.provider in self.agents else None
         _req(agent is not None, "agent not registered")
         slash = u256(0)
 
@@ -497,7 +509,7 @@ class Vonis(gl.Contract):
         _req(len(handle) > 0 and len(handle) <= MAX_TITLE, "handle required")
 
         who = gl.message.sender_address
-        agent = self.agents.get(who)
+        agent = self.agents[who] if who in self.agents else None
 
         if agent is None or agent.handle == "":
             self.agents[who] = Agent(
@@ -546,7 +558,7 @@ class Vonis(gl.Contract):
     @gl.public.write
     def withdraw(self) -> None:
         who = gl.message.sender_address
-        amount = self.credits.get(who)
+        amount = self.credits[who] if who in self.credits else None
         _req(amount is not None and int(amount) > 0, "nothing to withdraw")
 
         self.credits[who] = u256(0)
@@ -572,6 +584,7 @@ class Vonis(gl.Contract):
     ) -> str:
         requester = gl.message.sender_address
         reward = gl.message.value
+        provider = _as_address(provider)
         deadline = u256(int(delivery_deadline))
 
         _req(int(reward) > 0, "reward required")
@@ -901,42 +914,48 @@ class Vonis(gl.Contract):
 
     @gl.public.view
     def get_credit_of(self, who: Address) -> u256:
-        amount = self.credits.get(who)
+        who = _as_address(who)
+        amount = self.credits[who] if who in self.credits else None
         if amount is None:
             return u256(0)
         return amount
 
     @gl.public.view
     def get_agent_handle(self, who: Address) -> str:
-        agent = self.agents.get(who)
+        who = _as_address(who)
+        agent = self.agents[who] if who in self.agents else None
         if agent is None:
             return ""
         return agent.handle
 
     @gl.public.view
     def get_agent_score(self, who: Address) -> i32:
-        agent = self.agents.get(who)
+        who = _as_address(who)
+        agent = self.agents[who] if who in self.agents else None
         if agent is None:
             return i32(0)
         return agent.score
 
     @gl.public.view
     def get_agent_stake(self, who: Address) -> u256:
-        agent = self.agents.get(who)
+        who = _as_address(who)
+        agent = self.agents[who] if who in self.agents else None
         if agent is None:
             return u256(0)
         return agent.stake
 
     @gl.public.view
     def get_agent_active_cases(self, who: Address) -> u256:
-        agent = self.agents.get(who)
+        who = _as_address(who)
+        agent = self.agents[who] if who in self.agents else None
         if agent is None:
             return u256(0)
         return agent.active_cases
 
     @gl.public.view
     def get_agent_stats(self, who: Address) -> str:
-        agent = self.agents.get(who)
+        who = _as_address(who)
+        agent = self.agents[who] if who in self.agents else None
         if agent is None:
             return "0|0|0"
         return (
