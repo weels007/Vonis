@@ -147,6 +147,10 @@ Studionet's request budget.
 - Validators reject a leader whose verdict differs, whose score deviates by more than 15, whose award
   deviates by more than 1500 bps, whose criteria differ, or whose injection flag differs.
 - Evidence is limited to 3 URLs, bounded length, http/https only.
+- Two calls in every live run are **supposed to fail**, and the explorer shows them as errors: a
+  `judge_rule` signed by the non-judge wallet (rejected with `only judge`) and a `deliver_case` whose
+  evidence exceeds the 900-character limit (rejected with `bad evidence`). The script asserts the
+  case state did not change afterwards, so a rejected transaction is the expected outcome, not a bug.
 
 ## Not built yet
 

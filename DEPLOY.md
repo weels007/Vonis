@@ -104,6 +104,9 @@ roughly thirty requests a minute, and polling faster is what makes a live run sl
   state. The frontend hard-sets the latest one in `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`); update
   that line after a run reports a new address.
 - The step summary is where the result table and the contract address live.
+- Expect two failed transactions in the explorer from every run: `judge_rule` sent by the non-judge
+  wallet and `deliver_case` with oversized evidence. Both are adversarial checks — the contract must
+  reject them, and the script verifies the case did not move.
 
 
 ## If you want the key in GitHub Actions secrets
