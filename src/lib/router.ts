@@ -45,7 +45,13 @@ export function useRoute(): Route {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
 
   useEffect(() => {
-    const onChange = () => setRoute(parseHash(window.location.hash));
+    const onChange = () => {
+      setRoute(parseHash(window.location.hash));
+      // Route links should always start at the top; in-page anchors keep the browser offset.
+      if (window.location.hash.startsWith("#/") || window.location.hash === "") {
+        window.scrollTo({ top: 0 });
+      }
+    };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);

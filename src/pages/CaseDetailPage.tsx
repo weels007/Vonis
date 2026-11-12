@@ -31,8 +31,8 @@ export default function CaseDetailPage({
           <a className="back-link" href="#/cases">
             ← All cases
           </a>
-          <span className="eyebrow">{caseId}</span>
-          <h1>{item?.title || "Case"}</h1>
+          <h1 className="visually-hidden">{item?.title || "Case"}</h1>
+          <span className="eyebrow">Case</span>
         </div>
       </div>
 
