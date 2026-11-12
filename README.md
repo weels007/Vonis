@@ -134,6 +134,21 @@ allocation for `withdraw` (see the GenLayer v0.6 fee documentation).
 For a step-by-step deploy with the project's Studio test wallets (keystore import, schema check,
 smoke case), see [DEPLOY.md](DEPLOY.md).
 
+### Vercel (static hosting)
+
+The frontend is a plain Vite build with hash routing, so it deploys as a static site:
+
+- Root directory: `./`
+- Framework preset: Vite
+- Build command: `npm run build` (runs `tsc --noEmit` first)
+- Output directory: `dist`
+- Environment variables: none required; `VITE_NETWORK` defaults to `studionet`
+
+No rewrites are needed: every page lives behind `#/`, so deep links resolve to the same `index.html`.
+The wallet needs Studionet (chain id `61999`) in MetaMask, which the connect button offers to add.
+Remember the hard-set address is a Studionet deployment: update `CONTRACT_ADDRESS` and redeploy when
+the node resets or a new run reports a new contract.
+
 Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`, which deploys,
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
 Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet. It
