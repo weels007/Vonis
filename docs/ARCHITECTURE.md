@@ -287,6 +287,12 @@ itself uses). SDK behaviours that differed from the initial assumptions, now han
 The contract exposes two layers: typed views for small components, and one JSON view for the case
 detail card (including AI consensus output).
 
+Reads ask for the SDK's **latest non-final snapshot** (`transactionHashVariant`), not the latest final
+one. A contract that was just deployed, or a case written seconds ago, is not in the decided state
+yet, and reading the final snapshot there fails with `Contract not found`. The frontend and the
+Studionet script both pass `TransactionHashVariant.LATEST_NONFINAL`; reads that must be durable for
+accounting can opt into the final snapshot deliberately.
+
 **Per-field views**
 
 - `get_case_count()`, `get_case_status()`, `get_case_verdict()`, `get_case_award_bps()`,

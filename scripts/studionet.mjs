@@ -54,6 +54,10 @@ function summary() {
         } |`
     ),
   ];
+  const deployed = results.find((item) => item.label === "deployed" && item.ok === true);
+  if (deployed) {
+    lines.push("", `Contract: \`${deployed.detail}\``);
+  }
   const text = lines.join("\n") + "\n";
   log("\n" + text);
   if (process.env.GITHUB_STEP_SUMMARY) {
