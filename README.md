@@ -120,8 +120,8 @@ genlayer deploy --contract contracts/vonis.py
 ```
 
 The deployer address becomes the judge. Record the contract address in `.env` and in
-`docs/ARCHITECTURE.md`. The frontend keeps the latest run's address as `DEFAULT_CONTRACT_ADDRESS` in
-`src/lib/genlayer.ts`; it is a Studionet address, so it may stop existing when the node resets.
+`DEFAULT_CONTRACT_ADDRESS` (`src/lib/genlayer.ts`). That constant currently holds the latest
+Studionet run, so it may stop existing when the node resets.
 
 The contract's `Depends` header pins a concrete `py-genlayer` runner hash, matching the GenVM
 release the node runs. `py-genlayer:latest` is not deployable: it resolves to the GenVM test runner,
