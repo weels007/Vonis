@@ -26,6 +26,7 @@ const POLL_RETRIES = 60;
 const READ_ATTEMPTS = 6;
 const READ_PAUSE = 10_000;
 const ADJUDICATION_PAUSE = 15_000;
+const ADJUDICATION_TIMEOUT = 25 * 60 * 1000;
 
 const results = [];
 let failures = 0;
@@ -656,29 +657,50 @@ async function main() {
       ]);
       pass("raise_dispute");
 
-      const hash = await c1.writeContract({
-        address,
-        functionName: "adjudicate",
-        args: ["case-3"],
-      });
+      const hash = await c1.writeContract(
+        await withFees(c1, {
+          address,
+          functionName: "adjudicate",
+          args: ["case-3"],
+          value: 0n,
+        })
+      );
       const started = Date.now();
-      let status = null;
-      while (Date.now() - started < 20 * 60 * 1000) {
+      let decided = null;
+      while (Date.now() - started < ADJUDICATION_TIMEOUT) {
         const current = await c1.getTransaction({ hash });
-        status = current?.statusName ?? current?.status ?? null;
-        if (status === TransactionStatus.ACCEPTED || status === TransactionStatus.FINALIZED) {
+        const status = String(current?.statusName ?? "");
+        if (
+          status === TransactionStatus.ACCEPTED ||
+          status === TransactionStatus.FINALIZED ||
+          status === TransactionStatus.UNDETERMINED ||
+          status === TransactionStatus.CANCELED
+        ) {
+          decided = { current, state: executionState(current, current) };
           break;
         }
-        if (status === TransactionStatus.UNDETERMINED || status === TransactionStatus.CANCELED) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, ADJUDICATION_PAUSE));
+        await sleep(ADJUDICATION_PAUSE);
       }
-      const json = JSON.parse(String(await read(c1, address, "get_case_json", ["case-3"])));
+      if (!decided) {
+        throw new Error(`adjudicate did not decide within 25 minutes (${hash})`);
+      }
+      if (!decided.state.ok) {
+        throw new Error(
+          `adjudicate: ${decided.state.status} execution ${decided.state.execution}/${
+            decided.state.leaderExecution || "?"
+          } — ${leaderDetail(decided.state.leader)} (${hash})`
+        );
+      }
+
+      const json = JSON.parse(
+        String(await readWithRetry(c1, address, "get_case_json", ["case-3"], 3))
+      );
       pass(
         "adjudicate",
-        `status=${status} verdict=${json.verdict} score=${json.score} criteria=${json.criteria?.length}`
+        `status=${decided.state.status} verdict=${json.verdict} award=${json.award_bps} score=${json.score} criteria=${json.criteria?.length} tx=${hash}`
       );
+      if (json.status !== "RULED") fail("adjudicate ruled", `case status is ${json.status}`);
+      if (!json.verdict) fail("adjudicate verdict", "empty verdict");
 
       await write(c1, address, "judge_rule", ["case-3", 5000, "Manual settlement after audit"]);
       const settled = JSON.parse(String(await read(c1, address, "get_case_json", ["case-3"])));

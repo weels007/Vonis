@@ -138,8 +138,8 @@ Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
 Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet. It
 runs on `workflow_dispatch`, or on a push touching `contracts/`, `scripts/` or `tests/` whose commit
-message carries `[studionet]`. Every receipt poll waits 10 seconds, which keeps the run inside
-Studionet's request budget.
+message carries `[studionet]` (add `[adjudication]` to also run the real LLM dispute path). Every
+receipt poll waits 10 seconds, which keeps the run inside Studionet's request budget.
 
 ## Security properties enforced by tests
 
@@ -165,6 +165,7 @@ Studionet's request budget.
 
 - Contract events (`gl.chain.Event` + `gen_getLogs`) so an indexer does not have to poll; the
   `emit()` API is not verified on the pinned SDK and direct mode cannot emit messages.
-- The real LLM dispute path (`adjudicate` with web access) is behind `RUN_ADJUDICATION=1` on the
-  Studionet workflow; it is not part of the default run because it takes minutes.
+- The real LLM dispute path (`adjudicate` with web access) is behind `RUN_ADJUDICATION=1`: tick the
+  input on a manual run, or add `[adjudication]` to the commit message. It is not part of the default
+  run because it takes minutes.
 - Multi-judge/DAO, a protocol-appeal UI, and cross-application reputation.
