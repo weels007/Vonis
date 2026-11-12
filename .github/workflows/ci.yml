@@ -5,7 +5,9 @@ on:
   pull_request:
 
 env:
-  GENVM_VERSION: v0.3.0-rc7
+  # genlayer-test 0.29.2 loads the GenVM SDK before injecting the message
+  # context on the v0.3 line; v0.2.16 (the tool's own fallback) works.
+  GENVM_VERSION: v0.2.16
 
 jobs:
   contracts:
@@ -33,9 +35,10 @@ jobs:
         if: steps.genvm-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$HOME/.cache/gltest-direct"
-          curl -fL --retry 3 --retry-delay 2 \
-            -o "$HOME/.cache/gltest-direct/genvm-universal-${GENVM_VERSION}.tar.xz" \
-            "https://github.com/genlayerlabs/genvm/releases/download/${GENVM_VERSION}/genvm-runners-all.tar.xz"
+          OUT="$HOME/.cache/gltest-direct/genvm-universal-${GENVM_VERSION}.tar.xz"
+          BASE="https://github.com/genlayerlabs/genvm/releases/download/${GENVM_VERSION}"
+          curl -fL --retry 3 --retry-delay 2 -o "$OUT" "$BASE/genvm-runners-all.tar.xz" \
+            || curl -fL --retry 3 --retry-delay 2 -o "$OUT" "$BASE/genvm-universal.tar.xz"
 
       - name: Byte-compile contract sources
         run: python -m compileall -q contracts
