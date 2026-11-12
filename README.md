@@ -118,9 +118,10 @@ genlayer deploy --contract contracts/vonis.py
 The deployer address becomes the judge. Record the contract address in `.env` and in
 `docs/ARCHITECTURE.md`.
 
-The contract's `Depends` header uses `py-genlayer:latest` so it stays aligned with the development
-tooling and CI. Before a production deployment, pin the SDK hash emitted by the CLI/Studio version
-you use so contract builds are reproducible.
+The contract's `Depends` header pins a concrete `py-genlayer` runner hash, matching the GenVM
+release the node runs. `py-genlayer:latest` is not deployable: it resolves to the GenVM test runner,
+which nodes reject outside debug mode (`invalid_contract`), so direct-mode tests can use it while a
+Studionet deploy cannot. `scripts/runner-hash.py` prints the runner hashes a GenVM release ships.
 
 For Bradbury, prepare a wallet and faucet funds, and estimate write fees including message
 allocation for `withdraw` (see the GenLayer v0.6 fee documentation).

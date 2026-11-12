@@ -29,8 +29,28 @@ jobs:
         with:
           node-version: "20"
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: npm install
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/genvm-linter
+          key: genvm-linter-v0.2.16
+
+      # The header pins a runner hash; this prints the hash the release bundle
+      # ships, so a mismatch on "invalid_contract" is readable from the log.
+      - name: Resolve the py-genlayer runner hash
+        continue-on-error: true
+        env:
+          GENVM_VERSION: v0.2.16
+          GENVM_REPO: genlayerlabs/genvm
+        run: |
+          python -m pip install --quiet genvm-linter
+          python scripts/runner-hash.py | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy and test on Studionet
         env:
