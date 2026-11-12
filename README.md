@@ -7,8 +7,8 @@ URL. Jika requester menolak, sengketa dibuka dan **verdict** dihasilkan oleh LLM
 terhadap kriteria penerimaan, lalu **diverifikasi ulang secara independen oleh validator GenLayer**.
 Yang memindahkan uang selalu kode deterministik, bukan teks LLM.
 
-Status: fondasi kontrak + test suite (Milestone 0–1). Seluruh test hijau di GitHub Actions
-(75 test direct mode: unit, lint struktural, integration, adversarial, smoke runner). Belum di-deploy.
+Status: fondasi kontrak + test suite (Milestone 0–1). Seluruh 79 test hijau di GitHub Actions
+(unit, lint struktural, konsensus, integration, adversarial, smoke runner). Belum di-deploy.
 
 ## Kenapa GenLayer
 
