@@ -7,9 +7,9 @@
  */
 import { readFileSync, appendFileSync } from "node:fs";
 import { Wallet } from "ethers";
-import { createAccount, createClient } from "genlayer-js";
+import { createAccount, createClient, generatePrivateKey } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
-import { TransactionStatus } from "genlayer-js/types";
+import { TransactionHashVariant, TransactionStatus } from "genlayer-js/types";
 import { createPublicClient, http, parseEther, formatEther } from "viem";
 
 const REQUIRED = 3n * 10n ** 18n;
@@ -73,30 +73,97 @@ function clientFor(account) {
 }
 
 async function read(client, address, functionName, args = []) {
-  return client.readContract({ address, functionName, args });
+  // readContract defaults to the latest *final* snapshot, which does not
+  // contain a contract or state written moments ago. Ask for the newest
+  // non-final snapshot so reads right after a write (or a deployment) see it.
+  return client.readContract({
+    address,
+    functionName,
+    args,
+    transactionHashVariant: TransactionHashVariant.LATEST_NONFINAL,
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readWithRetry(client, address, functionName, args = [], attempts = 12) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await read(client, address, functionName, args);
+    } catch (error) {
+      lastError = error;
+      await sleep(5000);
+    }
+  }
+  throw lastError;
 }
 
 async function wait(client, hash, label) {
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: TransactionStatus.ACCEPTED,
+    interval: 3000,
+    retries: 120,
   });
-  const execution = String(receipt?.txExecutionResultName ?? "UNKNOWN");
-  if (execution === "FINISHED_WITH_ERROR") {
-    throw new Error(`${label}: execution failed (${execution})`);
+  const full = await client.getTransaction({ hash });
+  const execution = String(
+    full?.txExecutionResultName ?? receipt?.txExecutionResultName ?? "UNKNOWN"
+  );
+  const status = String(full?.statusName ?? receipt?.statusName ?? "UNKNOWN");
+  if (execution === "FINISHED_WITH_RETURN") return { receipt, full };
+  if (execution === "UNKNOWN") {
+    // Older nodes do not report the execution result; do not fail on that,
+    // the follow-up read proves whether the state changed.
+    log(`WARN ${label}: ${status}, execution result not reported`);
+    return { receipt, full };
   }
-  return receipt;
+  const leader =
+    full?.consensus_data?.leader_receipt?.[0] ??
+    receipt?.consensus_data?.leader_receipt?.[0] ??
+    null;
+  const detail = leader?.error ? String(leader.error) : String(leader?.result ?? "");
+  throw new Error(
+    `${label}: ${status} ${execution}${detail ? " — " + detail.slice(0, 300) : ""}`
+  );
+}
+
+async function withFees(client, payload) {
+  // Fee-charging networks expect an estimated policy with the write; Studio is
+  // gasless and fails the estimate, which must not block the call.
+  try {
+    const estimate = await client.estimateTransactionFeesForWrite(payload);
+    if (estimate?.distribution && estimate?.feeValue !== undefined) {
+      return {
+        ...payload,
+        fees: {
+          distribution: estimate.distribution,
+          messageAllocations: estimate.messageAllocations,
+          feeValue: estimate.feeValue,
+        },
+      };
+    }
+  } catch {
+    // No fee policy on this network.
+  }
+  return payload;
 }
 
 async function write(client, address, functionName, args = [], value = 0n) {
-  const hash = await client.writeContract({ address, functionName, args, value });
+  const hash = await client.writeContract(
+    await withFees(client, { address, functionName, args, value })
+  );
   await wait(client, hash, functionName);
   return hash;
 }
 
 async function writeExpectFailure(client, address, functionName, args = [], value = 0n) {
   try {
-    const hash = await client.writeContract({ address, functionName, args, value });
+    const hash = await client.writeContract(
+      await withFees(client, { address, functionName, args, value })
+    );
     const receipt = await client.waitForTransactionReceipt({
       hash,
       status: TransactionStatus.ACCEPTED,
@@ -106,6 +173,25 @@ async function writeExpectFailure(client, address, functionName, args = [], valu
   } catch (error) {
     return { failed: true, detail: String(error?.message ?? error).slice(0, 160) };
   }
+}
+
+async function fundSimulatedAccount(publicClient, address) {
+  // The Studio simulator faucet takes either GEN units or wei depending on the
+  // node build, so try both and keep whichever leaves a usable balance.
+  for (const amount of [10, Number(parseEther("10"))]) {
+    try {
+      await publicClient.request({ method: "sim_fundAccount", params: [address, amount] });
+    } catch (error) {
+      log(`WARN sim_fundAccount failed: ${String(error?.message ?? error).slice(0, 160)}`);
+      return false;
+    }
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const balance = await publicClient.getBalance({ address });
+      if (balance >= ONE_GEN) return true;
+      await sleep(3000);
+    }
+  }
+  return false;
 }
 
 async function main() {
@@ -126,40 +212,51 @@ async function main() {
   }
 
   const account1 = createAccount(w1.privateKey);
-  const account2 = w2 ? createAccount(w2.privateKey) : null;
   const c1 = clientFor(account1);
-  const c2 = account2 ? clientFor(account2) : null;
-
-  pass("wallets", `${account1.address}${account2 ? " + " + account2.address : " (single wallet)"}`);
 
   const publicClient = createPublicClient({
     chain: studionet,
     transport: http(studionet.rpcUrls.default.http[0]),
   });
 
+  let account2 = w2 ? createAccount(w2.privateKey) : null;
+  if (!account2) {
+    // Without the TESTER2 secrets the two-party lifecycle cannot run, so try a
+    // throwaway provider key funded from the Studio simulator instead.
+    const candidate = createAccount(generatePrivateKey());
+    if (await fundSimulatedAccount(publicClient, candidate.address)) {
+      account2 = candidate;
+      log("note: TEST2 secrets are not configured; funded a throwaway provider wallet");
+    }
+  }
+  const c2 = account2 ? clientFor(account2) : null;
+
+  pass("wallets", `${account1.address}${account2 ? " + " + account2.address : " (single wallet)"}`);
+
   const balance = await publicClient.getBalance({ address: account1.address });
   pass("deployer balance", `${formatEther(balance)} GEN`);
 
   const code = readFileSync("contracts/vonis.py", "utf8");
-  const deployHash = await c1.deployContract({ code });
-  await wait(c1, deployHash, "deploy");
-
-  const tx = await c1.getTransaction({ hash: deployHash });
-  const address =
-    tx?.txDataDecoded?.contractAddress ?? tx?.recipient ?? tx?.to_address ?? null;
-  if (!address) {
-    fail("contract address", "deploy receipt had no contractAddress");
+  let address = null;
+  try {
+    const deployHash = await c1.deployContract({ code });
+    await wait(c1, deployHash, "deploy");
+    const tx = await c1.getTransaction({ hash: deployHash });
+    address = tx?.txDataDecoded?.contractAddress ?? tx?.recipient ?? tx?.to_address ?? null;
+    if (!address) throw new Error("deploy receipt had no contractAddress");
+    pass("deployed", address);
+  } catch (error) {
+    fail("deploy", String(error?.message ?? error));
     summary();
     process.exit(1);
   }
-  pass("deployed", address);
 
   if (process.env.GITHUB_ENV) {
     appendFileSync(process.env.GITHUB_ENV, `CONTRACT_ADDRESS=${address}\n`);
   }
 
   try {
-    const count = await read(c1, address, "get_case_count");
+    const count = await readWithRetry(c1, address, "get_case_count");
     pass("get_case_count", String(count));
     if (Number(count) !== 0) fail("fresh contract", "case_count is not zero");
   } catch (error) {
@@ -200,7 +297,10 @@ async function main() {
   }
 
   if (!c2) {
-    skip("case lifecycle", "second wallet (TEST2) is not configured");
+    skip(
+      "case lifecycle",
+      "second wallet unavailable: add VONIS_TESTER2_KEYSTORE / VONIS_TESTER2_PASSWORD (or CLAUSEGUARD_TESTER2_*) and sim_fundAccount did not fund a throwaway key"
+    );
     summary();
     process.exit(failures > 0 ? 1 : 0);
   }

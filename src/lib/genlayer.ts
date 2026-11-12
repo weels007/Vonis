@@ -1,5 +1,5 @@
 import { createClient } from "genlayer-js";
-import { TransactionStatus } from "genlayer-js/types";
+import { TransactionHashVariant, TransactionStatus } from "genlayer-js/types";
 import type { CaseView } from "./types";
 import { CHAIN, NETWORK, ensureNetwork } from "./wallet";
 
@@ -47,7 +47,7 @@ async function read(functionName: string, args: unknown[] = []): Promise<any> {
     address: CONTRACT_ADDRESS,
     functionName,
     args,
-    stateStatus: "accepted",
+    transactionHashVariant: TransactionHashVariant.LATEST_NONFINAL,
   });
 }
 
