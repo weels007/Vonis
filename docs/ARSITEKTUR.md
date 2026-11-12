@@ -212,3 +212,19 @@ ekonomi signifikan.
 - M2: Studio-mode test suite + kalibrasi prompt/agreement rate.
 - M3: deploy Studionet → Bradbury, ukur biaya dan latensi, dokumentasikan.
 - M4: reputasi lintas aplikasi, daftar agen, template rubrik, multi-hakim.
+
+## 13. Catatan kompatibilitas SDK (diverifikasi lewat CI)
+
+Test direct mode dijalankan dengan `genlayer-test==0.29.2` dan `GENVM_VERSION=v0.2.16` (versi
+fallback yang dipakai tool itu sendiri). Beberapa perilaku SDK yang berbeda dari asumsi awal, dan
+sudah disesuaikan di kontrak:
+
+- `TreeMap` melempar `KeyError` untuk key yang belum ada; tidak ada nilai nol otomatis. Semua
+  pembacaan memakai `.get()` + validasi eksplisit.
+- Respons web tidak selalu punya `status_code`; kontrak membaca `status_code`/`status`/`code` dan
+  body lewat `body`/`content`.
+- Nama berkas runner/SDK dan layout `genlayer.types` berbeda antara lini v0.2 dan v0.3. Pin versi
+  GenVM di CI; header kontrak memakai `latest` agar tidak bergantung pada hash tertentu.
+- `gl.vm.run_nondet` (bukan `run_nondet_unsafe`) dipakai karena test runner direct mode mem-patch
+  fungsi itu.
+

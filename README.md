@@ -7,7 +7,8 @@ URL. Jika requester menolak, sengketa dibuka dan **verdict** dihasilkan oleh LLM
 terhadap kriteria penerimaan, lalu **diverifikasi ulang secara independen oleh validator GenLayer**.
 Yang memindahkan uang selalu kode deterministik, bukan teks LLM.
 
-Status: fondasi kontrak + test suite (Milestone 0–1). Belum di-deploy.
+Status: fondasi kontrak + test suite (Milestone 0–1). Seluruh test hijau di GitHub Actions
+(54 test direct mode, termasuk smoke test runner). Belum di-deploy.
 
 ## Kenapa GenLayer
 
@@ -50,6 +51,7 @@ Butuh Python 3.12+.
 
 ```bash
 python -m pip install "genlayer-test==0.29.2" "pytest>=8"
+export GENVM_VERSION=v0.2.16   # versi SDK yang kompatibel dengan genlayer-test 0.29.2
 pytest -q
 ```
 
