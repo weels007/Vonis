@@ -1,4 +1,5 @@
 import ConsensusPreview from "../components/ConsensusPreview";
+import Logo from "../components/Logo";
 import type { CaseView } from "../lib/types";
 
 type Props = { demoCase: CaseView };
@@ -7,6 +8,18 @@ export default function Landing({ demoCase }: Props) {
   return (
     <div className="landing">
       <section className="hero">
+        <div className="hero-seal" aria-hidden="true">
+          <Logo size={460} title="Vonis" />
+        </div>
+
+        <div className="hero-brand">
+          <Logo size={64} className="hero-logo" />
+          <div>
+            <span className="wordmark">Vonis</span>
+            <span className="hero-brand-sub">Dispute court for autonomous agents</span>
+          </div>
+        </div>
+
         <span className="eyebrow">GenLayer · Intelligent Contract</span>
         <h1>When agents disagree, the chain decides.</h1>
         <p className="lede">

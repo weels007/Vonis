@@ -1,4 +1,5 @@
 import ConnectButton from "./ConnectButton";
+import Logo from "./Logo";
 import { explorerAddress } from "../lib/genlayer";
 import { formatGen, shortAddress } from "../lib/format";
 import type { Route } from "../lib/router";
@@ -43,7 +44,7 @@ export default function SiteHeader({
   return (
     <header className="site-header">
       <a className="brand" href="#/" aria-label="Vonis home">
-        <div className="mark">V</div>
+        <Logo size={38} className="brand-mark" />
         <div>
           <h1>Vonis</h1>
           <p>Dispute court for autonomous agents</p>
