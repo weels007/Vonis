@@ -85,11 +85,14 @@ evidence, and expect the verdict to take minutes.
 ## Automating it
 
 The repository already automates this: `.github/workflows/studionet.yml` runs
-`scripts/studionet.mjs` on `workflow_dispatch` (or a push whose commit message contains `[studionet]`).
-It decrypts the keystore in memory, deploys a fresh contract, checks that code really exists at the
-reported address, and then exercises the full lifecycle: register, stake, open, accept, deliver,
-non-judge `judge_rule` rejected, `accept_delivery`, `withdraw`, `cancel_case`, and oversized evidence
-rejected.
+`scripts/studionet.mjs` on `workflow_dispatch` (or a push that touches `contracts/`, `scripts/` or
+`tests/` and whose commit message contains `[studionet]`). It decrypts the keystore in memory,
+deploys a fresh contract, checks that code really exists at the reported address, and then exercises
+the full lifecycle: register, stake, open, accept, deliver, non-judge `judge_rule` rejected,
+`accept_delivery`, `withdraw`, `cancel_case`, and oversized evidence rejected.
+
+Receipt polling waits 10 seconds between requests (`POLL_INTERVAL` in the script); Studionet allows
+roughly thirty requests a minute, and polling faster is what makes a live run slow and flaky.
 
 - Secrets: `VONIS_TESTER1_KEYSTORE` / `VONIS_TESTER1_PASSWORD` (aliases `VONIS_KEYSTORE_JSON`,
   `CLAUSEGUARD_TESTER1_*`). `TESTER2` is optional; without it the script funds a throwaway provider

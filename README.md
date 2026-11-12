@@ -132,7 +132,10 @@ smoke case), see [DEPLOY.md](DEPLOY.md).
 
 Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`, which deploys,
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
-Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet.
+Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet. It
+runs on `workflow_dispatch`, or on a push touching `contracts/`, `scripts/` or `tests/` whose commit
+message carries `[studionet]`. Every receipt poll waits 10 seconds, which keeps the run inside
+Studionet's request budget.
 
 ## Security properties enforced by tests
 

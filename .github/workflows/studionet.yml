@@ -10,6 +10,14 @@ on:
 
   push:
     branches: [main]
+    # A live run costs real web and LLM consensus, so only changed inputs
+    # start one. Docs-only commits stay cheap.
+    paths:
+      - "contracts/**"
+      - "scripts/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/studionet.yml"
 
 concurrency:
   group: studionet-${{ github.ref }}
@@ -33,8 +41,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
       - name: Install dependencies
-        run: npm install
+        run: npm install --prefer-offline --no-audit --no-fund
 
       - uses: actions/cache@v4
         with:

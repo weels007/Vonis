@@ -18,6 +18,14 @@ const SPEC_URL = "https://example.com";
 const EVIDENCE_URL = "https://example.com";
 const RUBRIC = "1. The page loads\n2. The page contains the word Example";
 
+// Studionet allows roughly thirty requests a minute and a poll is a request, so
+// a ten second interval keeps a whole run inside that budget.
+const POLL_INTERVAL = 10_000;
+const POLL_RETRIES = 60;
+const READ_ATTEMPTS = 6;
+const READ_PAUSE = 10_000;
+const ADJUDICATION_PAUSE = 15_000;
+
 const results = [];
 let failures = 0;
 
@@ -94,14 +102,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function readWithRetry(client, address, functionName, args = [], attempts = 12) {
+async function readWithRetry(
+  client,
+  address,
+  functionName,
+  args = [],
+  attempts = READ_ATTEMPTS
+) {
   let lastError;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       return await read(client, address, functionName, args);
     } catch (error) {
       lastError = error;
-      await sleep(5000);
+      await sleep(READ_PAUSE);
     }
   }
   throw lastError;
@@ -176,8 +190,8 @@ async function wait(client, hash, label) {
   const receipt = await client.waitForTransactionReceipt({
     hash,
     status: TransactionStatus.ACCEPTED,
-    interval: 3000,
-    retries: 120,
+    interval: POLL_INTERVAL,
+    retries: POLL_RETRIES,
   });
   const full = await client.getTransaction({ hash });
   const state = executionState(full, receipt);
@@ -614,7 +628,7 @@ async function main() {
         if (status === TransactionStatus.UNDETERMINED || status === TransactionStatus.CANCELED) {
           break;
         }
-        await new Promise((resolve) => setTimeout(resolve, 15000));
+        await new Promise((resolve) => setTimeout(resolve, ADJUDICATION_PAUSE));
       }
       const json = JSON.parse(String(await read(c1, address, "get_case_json", ["case-3"])));
       pass(
