@@ -179,6 +179,67 @@ async function writeExpectFailure(client, address, functionName, args = [], valu
   }
 }
 
+function describeTx(tx) {
+  if (!tx) return "no transaction";
+  const leader = tx?.consensus_data?.leader_receipt?.[0] ?? {};
+  const parts = [
+    `status=${tx?.statusName ?? "?"}`,
+    `execution=${tx?.txExecutionResultName ?? "?"}`,
+    `leader=${leader?.execution_result ?? "?"}`,
+    `from=${tx?.from_address ?? tx?.sender ?? "?"}`,
+    `recipient=${tx?.recipient ?? "?"}`,
+    `to_address=${tx?.to_address ?? "?"}`,
+    `decoded=${tx?.txDataDecoded?.contractAddress ?? "?"}`,
+  ];
+  if (leader?.error) {
+    parts.push(`error=${String(leader.error).replace(/\s+/g, " ").slice(0, 300)}`);
+  }
+  return parts.join(" ");
+}
+
+async function traceOf(client, hash) {
+  if (!hash) return { detail: "" };
+  try {
+    const trace = await client.debugTraceTransaction({ hash });
+    const parts = [];
+    if (trace?.result_code !== undefined) parts.push(`code=${trace.result_code}`);
+    for (const key of ["error", "stderr", "stdout"]) {
+      const value = String(trace?.[key] ?? "").trim();
+      if (value) parts.push(`${key}=${value.replace(/\s+/g, " ").slice(0, 300)}`);
+    }
+    const genvm = Array.isArray(trace?.genvm_log)
+      ? trace.genvm_log
+          .slice(-5)
+          .map((entry) => (typeof entry === "string" ? entry : JSON.stringify(entry)))
+          .join(" | ")
+      : "";
+    if (genvm) parts.push(`genvm=${genvm.slice(0, 400)}`);
+    return { detail: parts.join(" ") };
+  } catch (error) {
+    return {
+      detail: `unavailable (${String(error?.message ?? error).replace(/\s+/g, " ").slice(0, 200)})`,
+    };
+  }
+}
+
+async function deployFees(client) {
+  // Deployments are fee-funded on fee-charging networks; Studio is gasless and
+  // fails the estimate, which must leave the deploy unfunded rather than broken.
+  try {
+    const estimate = await client.estimateTransactionFees({});
+    if (estimate?.distribution && estimate?.feeValue !== undefined) {
+      return {
+        distribution: estimate.distribution,
+        messageAllocations: estimate.messageAllocations,
+        feeValue: estimate.feeValue,
+      };
+    }
+  } catch {
+    // No fee policy on this network.
+  }
+  return undefined;
+}
+
 async function fundSimulatedAccount(publicClient, address) {
   // The Studio simulator faucet takes either GEN units or wei depending on the
   // node build, so try both and keep whichever leaves a usable balance.
@@ -242,15 +303,32 @@ async function main() {
 
   const code = readFileSync("contracts/vonis.py", "utf8");
   let address = null;
+  let deployHash = null;
   try {
-    const deployHash = await c1.deployContract({ code });
+    deployHash = await c1.deployContract({ code, fees: await deployFees(c1) });
     await wait(c1, deployHash, "deploy");
     const tx = await c1.getTransaction({ hash: deployHash });
+    log(`deploy tx: ${describeTx(tx)}`);
     address = tx?.txDataDecoded?.contractAddress ?? tx?.recipient ?? tx?.to_address ?? null;
     if (!address) throw new Error("deploy receipt had no contractAddress");
+    // The reported address is only the contract address if code actually lives
+    // there; a failed deployment leaves nothing but a Ghost at that address.
+    let codeAtAddress = "";
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        codeAtAddress = String((await c1.getContractCode(address)) ?? "");
+        if (codeAtAddress.trim()) break;
+      } catch (error) {
+        if (attempt === 2) throw error;
+      }
+      await sleep(5000);
+    }
+    if (!codeAtAddress.trim()) throw new Error(`no contract code at ${address}`);
+    log(`contract code bytes: ${codeAtAddress.length}`);
     pass("deployed", address);
   } catch (error) {
-    fail("deploy", String(error?.message ?? error));
+    const trace = await traceOf(c1, deployHash);
+    fail("deploy", `${String(error?.message ?? error)} | trace: ${trace.detail}`);
     summary();
     process.exit(1);
   }
@@ -264,7 +342,10 @@ async function main() {
     pass("get_case_count", String(count));
     if (Number(count) !== 0) fail("fresh contract", "case_count is not zero");
   } catch (error) {
-    fail("get_case_count", String(error?.message ?? error));
+    const trace = await traceOf(c1, deployHash);
+    fail("get_case_count", `${String(error?.message ?? error)} | trace: ${trace.detail}`);
+    summary();
+    process.exit(1);
   }
 
   try {
@@ -274,10 +355,15 @@ async function main() {
     fail("get_judge", String(error?.message ?? error));
   }
 
-  // Registry: both agents register, then read their profile back.
+  // Registry: both agents register, then read their profile back. A write to an
+  // address without code succeeds as a no-op, so check the stored handle.
   try {
     await write(c1, address, "register_agent", ["requester-agent", "https://example.com"]);
-    pass("register_agent(requester)");
+    const handle = String(await read(c1, address, "get_agent_handle", [account1.address]));
+    if (handle !== "requester-agent") {
+      throw new Error(`handle is "${handle}" after register_agent`);
+    }
+    pass("register_agent(requester)", handle);
   } catch (error) {
     fail("register_agent(requester)", String(error?.message ?? error));
   }
@@ -285,19 +371,21 @@ async function main() {
   if (c2) {
     try {
       await write(c2, address, "register_agent", ["provider-agent", "https://example.com"]);
-      pass("register_agent(provider)");
+      const handle = String(await read(c2, address, "get_agent_handle", [account2.address]));
+      if (handle !== "provider-agent") {
+        throw new Error(`handle is "${handle}" after register_agent`);
+      }
+      pass("register_agent(provider)", handle);
     } catch (error) {
       fail("register_agent(provider)", String(error?.message ?? error));
     }
   }
 
   try {
-    const handle = await read(c1, address, "get_agent_handle", [account1.address]);
-    pass("get_agent_handle", String(handle));
     const score = await read(c1, address, "get_agent_score", [account1.address]);
     pass("get_agent_score", String(score));
   } catch (error) {
-    fail("agent reads", String(error?.message ?? error));
+    fail("get_agent_score", String(error?.message ?? error));
   }
 
   if (!c2) {
@@ -338,6 +426,8 @@ async function main() {
       ONE_GEN
     );
     caseId = "case-0";
+    const caseCount = Number(await read(c1, address, "get_case_count"));
+    if (caseCount !== 1) throw new Error(`get_case_count is ${caseCount} after open_case`);
     pass("open_case", caseId);
   } catch (error) {
     fail("open_case", String(error?.message ?? error));
