@@ -10,7 +10,7 @@ export { NETWORK_LABEL } from "./wallet";
 // latest Studionet deployment (see the `studionet` workflow's step summary);
 // Studionet state is temporary, so replace this value when a run reports a new
 // address.
-export const CONTRACT_ADDRESS = "0xDD6b10390f3F2a5d676f76036a906f44242C7a65";
+export const CONTRACT_ADDRESS = "0xf0ab9e999D376C13c147341e0d11c0e15426Bc39";
 
 export const IS_CONFIGURED = /^0x[0-9a-fA-F]{40}$/.test(CONTRACT_ADDRESS);
 
