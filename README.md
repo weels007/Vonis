@@ -86,10 +86,10 @@ npm run dev
 ```
 
 The contract address is hard-set in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`), not read from the
-environment: `0xDD6b10390f3F2a5d676f76036a906f44242C7a65`, from the latest `studionet` run. Replace
-that line after a deployment. There is no mock data in the app: every case, verdict and per-criterion
-reason on screen is read from `get_case_json`, and an unreachable contract shows an error plus an
-empty state. It refreshes every 15 seconds.
+environment. The `studionet` workflow rewrites that line after every deployment and commits it, so it
+always follows the newest contract. There is no mock data in the app: every case, verdict and
+per-criterion reason on screen is read from `get_case_json`, and an unreachable contract shows an
+error plus an empty state. It refreshes every 15 seconds.
 
 Pages (hash routing, so deep links work on static hosting): landing, case explorer, case detail, new
 case, and transaction history.
