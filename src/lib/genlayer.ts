@@ -101,8 +101,10 @@ export async function writeVonis(
     provider: window.ethereum,
   });
 
+  // The SDK reads the sender from the client's account. Passing the address
+  // string as `account` here made it encode `undefined.address` as the EVM
+  // "from" address, which viem rejected with an invalid 20-byte hex error.
   const payload: any = {
-    account,
     address: CONTRACT_ADDRESS,
     functionName,
     args,
