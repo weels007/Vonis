@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { deadlineToUnix, parseGenToWei } from "../lib/format";
 
 type Props = {
-  disabled: boolean;
+  account: string;
   pending: boolean;
   inline?: boolean;
+  onConnect: () => void;
   onCreate: (args: unknown[], value: bigint) => Promise<boolean>;
 };
 
@@ -25,7 +26,8 @@ function defaultDeadline(): string {
   );
 }
 
-export default function NewCaseForm({ disabled, pending, inline, onCreate }: Props) {
+export default function NewCaseForm({ account, pending, inline, onConnect, onCreate }: Props) {
+  const noWallet = !account;
   const [provider, setProvider] = useState("");
   const [title, setTitle] = useState("");
   const [specUrl, setSpecUrl] = useState("");
@@ -39,6 +41,12 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+
+    if (noWallet) {
+      // The submit button asks for a wallet instead of sitting disabled.
+      onConnect();
+      return;
+    }
 
     try {
       if (!/^0x[0-9a-fA-F]{40}$/.test(provider.trim())) {
@@ -85,7 +93,7 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
 
   const form = (
     <form onSubmit={(event) => void submit(event)}>
-      {disabled && (
+      {noWallet && (
         <p className="muted smallText">Connect a wallet to escrow the reward.</p>
       )}
 
@@ -156,8 +164,12 @@ export default function NewCaseForm({ disabled, pending, inline, onCreate }: Pro
 
       {error && <p className="form-error">{error}</p>}
 
-      <button type="submit" disabled={disabled || pending}>
-        {pending ? "Sending…" : "Escrow reward and open case"}
+      <button type="submit" disabled={pending}>
+        {pending
+          ? "Sending…"
+          : noWallet
+            ? "Connect wallet to continue"
+            : "Escrow reward and open case"}
       </button>
     </form>
   );

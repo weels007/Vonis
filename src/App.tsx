@@ -286,6 +286,7 @@ export default function App() {
               <NewCase
                 account={account}
                 pending={pendingKeys.has("create-case")}
+                onConnect={() => void handleConnect()}
                 onCreate={handleCreate}
               />
             )}

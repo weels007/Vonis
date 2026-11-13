@@ -3,10 +3,11 @@ import NewCaseForm from "../components/NewCaseForm";
 type Props = {
   account: string;
   pending: boolean;
+  onConnect: () => void;
   onCreate: (args: unknown[], value: bigint) => Promise<boolean>;
 };
 
-export default function NewCase({ account, pending, onCreate }: Props) {
+export default function NewCase({ account, pending, onConnect, onCreate }: Props) {
   return (
     <div className="page-body">
       <div className="page-head">
@@ -23,8 +24,9 @@ export default function NewCase({ account, pending, onCreate }: Props) {
       <section className="panel narrow">
         <NewCaseForm
           inline
-          disabled={!account}
+          account={account}
           pending={pending}
+          onConnect={onConnect}
           onCreate={onCreate}
         />
       </section>

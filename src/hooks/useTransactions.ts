@@ -27,7 +27,20 @@ function load(): TxItem[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as TxItem[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, 20);
+    // A "pending" item only means something while its run is alive in this tab.
+    // After a reload it can never resolve, and its key would keep the matching
+    // button disabled forever, so record it as interrupted instead.
+    return parsed.slice(0, 20).map((item) =>
+      item && item.status === "pending"
+        ? {
+            ...item,
+            status: "error" as const,
+            error:
+              "Interrupted before confirmation. Check the explorer for this transaction before retrying.",
+            finishedAt: Date.now(),
+          }
+        : item
+    );
   } catch {
     return [];
   }
@@ -121,7 +134,12 @@ export function useTransactions() {
     [items]
   );
 
-  const clearHistory = useCallback(() => commit(() => []), [commit]);
+  // Keep in-flight items: dropping them would hide the lock while the run is
+  // still alive, so a button could look clickable but refuse to start.
+  const clearHistory = useCallback(
+    () => commit((current) => current.filter((item) => item.status === "pending")),
+    [commit]
+  );
 
   return { items, pendingKeys, run, clearHistory };
 }
