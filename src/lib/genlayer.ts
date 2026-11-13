@@ -75,6 +75,10 @@ export async function getJudge(): Promise<string> {
   return String(await read("get_judge"));
 }
 
+export async function getAgentHandle(address: string): Promise<string> {
+  return String(await read("get_agent_handle", [address]));
+}
+
 export type WriteResult = {
   hash: string;
   execution: string;

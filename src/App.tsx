@@ -9,6 +9,7 @@ import {
   CONTRACT_ADDRESS,
   IS_CONFIGURED,
   NETWORK_LABEL,
+  getAgentHandle,
   getCase,
   getCaseCount,
   getCreditOf,
@@ -61,6 +62,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false);
   const [credit, setCredit] = useState(0);
   const [judge, setJudge] = useState("");
+  const [agentHandle, setAgentHandle] = useState("");
   const [balance, setBalance] = useState(0n);
   const [toast, setToast] = useState<TxItem | null>(null);
   const [txOpen, setTxOpen] = useState(false);
@@ -99,6 +101,7 @@ export default function App() {
     if (!who) {
       setCredit(0);
       setBalance(0n);
+      setAgentHandle("");
       return;
     }
     setBalance(await getBalanceWei(who));
@@ -107,6 +110,11 @@ export default function App() {
       setCredit(await getCreditOf(who));
     } catch {
       // Credit is a convenience: a failed read should not block the app.
+    }
+    try {
+      setAgentHandle(await getAgentHandle(who));
+    } catch {
+      setAgentHandle("");
     }
   }, []);
 
@@ -239,6 +247,10 @@ export default function App() {
     if (ok) setCredit(0);
   };
 
+  const handleRegister = async (handle: string, endpoint: string) => {
+    return handleAction("register-agent", "Register agent", "register_agent", [handle, endpoint]);
+  };
+
   const pendingCount = items.filter((item) => item.status === "pending").length;
 
   return (
@@ -285,8 +297,11 @@ export default function App() {
             {route.name === "new" && (
               <NewCase
                 account={account}
+                handle={agentHandle}
                 pending={pendingKeys.has("create-case")}
+                registerPending={pendingKeys.has("register-agent")}
                 onConnect={() => void handleConnect()}
+                onRegister={handleRegister}
                 onCreate={handleCreate}
               />
             )}

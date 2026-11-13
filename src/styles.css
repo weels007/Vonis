@@ -1394,3 +1394,15 @@ h3 {
     font-size: 30px;
   }
 }
+
+
+/* ---------- Agent profile (new case page) ---------- */
+
+.agent-profile {
+  margin-bottom: 16px;
+}
+
+.agent-profile h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}

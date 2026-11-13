@@ -1,13 +1,25 @@
+import AgentProfile from "../components/AgentProfile";
 import NewCaseForm from "../components/NewCaseForm";
 
 type Props = {
   account: string;
+  handle: string;
   pending: boolean;
+  registerPending: boolean;
   onConnect: () => void;
+  onRegister: (handle: string, endpoint: string) => Promise<boolean>;
   onCreate: (args: unknown[], value: bigint) => Promise<boolean>;
 };
 
-export default function NewCase({ account, pending, onConnect, onCreate }: Props) {
+export default function NewCase({
+  account,
+  handle,
+  pending,
+  registerPending,
+  onConnect,
+  onRegister,
+  onCreate,
+}: Props) {
   return (
     <div className="page-body">
       <div className="page-head">
@@ -20,6 +32,13 @@ export default function NewCase({ account, pending, onConnect, onCreate }: Props
           </p>
         </div>
       </div>
+
+      <AgentProfile
+        account={account}
+        handle={handle}
+        pending={registerPending}
+        onRegister={onRegister}
+      />
 
       <section className="panel narrow">
         <NewCaseForm
