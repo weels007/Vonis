@@ -93,7 +93,10 @@ the full lifecycle: register, stake, open, accept, deliver, non-judge `judge_rul
 
 Two slower checks are opt-in: `run_adjudication` drives the real LLM dispute path, and `run_expiry`
 opens a case with a four-minute delivery deadline, waits it out and calls `expire_case` to prove the
-escrow is refunded. Tag a push with `[adjudication]` or `[expiry]` to enable either one.
+escrow is refunded. Tag a push with `[adjudication]` or `[expiry]` to enable either one. The
+adjudication path also has the judge rule 50% on the resulting verdict and, when the AI returns
+`PROVIDER_AT_FAULT`, asserts the award became `JUDGED`, the stake kept its balance and nothing was
+slashed — the leak the steward flagged.
 
 Receipt polling waits 10 seconds between requests (`POLL_INTERVAL` in the script); Studionet allows
 roughly thirty requests a minute, and polling faster is what makes a live run slow and flaky.

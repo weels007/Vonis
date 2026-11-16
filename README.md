@@ -7,7 +7,7 @@ requester rejects the delivery, a dispute opens and a **verdict** is produced by
 the evidence against the acceptance rubric — then **independently re-verified by GenLayer
 validators**. Only deterministic code moves money.
 
-Status: contract foundation + test suite (Milestone 0–1). 93 tests pass in GitHub Actions
+Status: contract foundation + test suite (Milestone 0–1). 94 tests pass in GitHub Actions
 (unit, structural lint, consensus, integration, adversarial, runner smoke), and the Studionet
 workflow deploys the contract and drives the full case lifecycle against real validators.
 
@@ -101,8 +101,9 @@ Pages (hash routing, so deep links work on static hosting): landing, case explor
 case, and transaction history.
 
 Features: case list, AI verdict detail (verdict, score, award, criteria + reasons), role-aware
-actions (accept, submit evidence, accept delivery, raise dispute, request verdict, settle, cancel),
-opening a case with a GEN reward, and claiming funds.
+actions (accept, submit evidence, accept delivery, raise dispute, request verdict, settle, cancel,
+expire past the deadline, release escrow through the 14-day rescue, judge ruling), opening a case
+with a GEN reward, and claiming funds.
 
 Transaction layer:
 
@@ -161,7 +162,9 @@ Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
 Ghost where writes succeed as no-ops), and then exercises the full case lifecycle on Studionet. It
 runs on `workflow_dispatch`, or on a push touching `contracts/`, `scripts/` or `tests/` whose commit
-message carries `[studionet]` (add `[adjudication]` to also run the real LLM dispute path). Every
+message carries `[studionet]` (add `[adjudication]` to also run the real LLM dispute path, which then
+has the judge override the award and asserts that a `PROVIDER_AT_FAULT` verdict keeps no stake slash).
+Every
 receipt poll waits 10 seconds, which keeps the run inside Studionet's request budget. After a
 successful run it writes the new address into `CONTRACT_ADDRESS` and commits that, so static hosts
 follow the deployment; the commit touches only `src/`, so it never starts another live run.

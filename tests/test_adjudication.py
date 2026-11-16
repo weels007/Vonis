@@ -301,6 +301,24 @@ def test_only_a_party_can_rescue_an_unresolved_case(court, direct_vm, carol, ali
         court.settle_unresolved(case_id)
 
 
+def test_the_provider_can_also_rescue_an_unresolved_case(court, direct_vm, alice, bob):
+    """Either party can unwind it, so a silent requester cannot keep the reward locked."""
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0
+    )
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = bob
+    court.settle_unresolved(case_id)
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_payouts(case_id) == "0|1000|0"
+    assert int(court.get_credit_of(alice)) == REWARD
+    assert int(court.get_credit_of(bob)) == 0
+    # The provider's slot is released even though the reward goes back.
+    assert int(court.get_agent_active_cases(bob)) == 0
+
+
 def test_a_judged_case_cannot_be_rescued(court, direct_vm, direct_owner, alice, bob):
     case_id = adjudicated_case(
         court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0

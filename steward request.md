@@ -1,11 +1,12 @@
 # Steward request — lifecycle recovery for Vonis
 
-Status: **done and deployed.** Pushed as `13ca73e`, verified by CI, deployed to Studionet by the
-`studionet` workflow (job `deploy-and-test`, 8m 52s, passed), and the new address was recorded
-automatically in `src/lib/genlayer.ts` by commit `90ae7a9`.
+Status: **done, deployed and exercised on Studionet with the project's two test wallets.** Two live
+`deploy-and-test` runs carried it: `13ca73e` proved the expiry path (`expire_case`), and `7816181`
+proved the judge override (`PROVIDER_AT_FAULT` → judge rules 50% → `JUDGED`, no slash). The current
+deployment is the one from the second run.
 
-- Contract: `0x80249B8892E82984BbdcE9C1b85548f53D622ac4`
-- Explorer: https://explorer-studio.genlayer.com/address/0x80249B8892E82984BbdcE9C1b85548f53D622ac4
+- Contract: `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e`
+- Explorer: https://explorer-studio.genlayer.com/address/0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e
 
 ## 1. The request, as received
 
@@ -225,32 +226,49 @@ the UI predicates are the same rules expressed once in `format.ts`.
 
 ## 5. Was the contract deployed and tested with the real wallets?
 
-**Yes — deployed with the change, and the affected methods were driven on Studionet by the project's
-two test wallets.** Evidence:
+**Yes for everything that can be reached deterministically, and each of the three items now has a
+trace on chain except the UNVERIFIABLE branch, which needs the AI to return that verdict.** Two live
+runs, both signed by the project's two test wallets:
 
-| Item | Value |
-| --- | --- |
-| Commit pushed | `13ca73e` (CI + live markers `[studionet] [expiry]`) |
-| CI `contracts` | passed, 32s (93 pytest tests) |
-| CI `app` | passed, 25s (`tsc --noEmit` + Vite build) |
-| Vercel | passed, deployment completed |
-| Live `deploy-and-test` | passed, 8m 52s (deploy, code check at address, full lifecycle, expiry wait) |
-| Address recording | automatic commit `90ae7a9` → `0x80249B8892E82984BbdcE9C1b85548f53D622ac4` |
-| Signing wallets | `0xE8b3e800d08727D25156a44cD1609F793bd0Af5a` (TEST1) + `0x0C0Fd005478Cef9219451BBD19Dfc6C0586fC1Ad` (TEST2), both reported as `(secret)` by the script |
+| Item | Run A — expiry | Run B — judge override |
+| --- | --- | --- |
+| Commit | `13ca73e` (`[studionet] [expiry]`) | `7816181` (`[studionet] [adjudication]`) |
+| Live job | `deploy-and-test`, 8m 52s, passed | `deploy-and-test`, 5m 14s, passed |
+| Deployed contract | `0x80249B8892E82984BbdcE9C1b85548f53D622ac4` | `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e` |
+| Address recorded by | commit `90ae7a9` | commit `97fed58` |
+| What it proved | `expire_case` refunds a stuck `ACCEPTED` case | a `PROVIDER_AT_FAULT` verdict overridden to 50% keeps its stake |
 
-Log lines from that run, quoted:
+Both runs used the same two wallets, reported as `(secret)` by the script — no simulator fallback:
 
 ```
 credentials present: TEST1_KEYSTORE=yes, TEST1_PASSWORD=yes, TEST2_KEYSTORE=yes, TEST2_PASSWORD=yes
 PASS wallets — 0xE8b3e800d08727D25156a44cD1609F793bd0Af5a (secret) + 0x0C0Fd005478Cef9219451BBD19Dfc6C0586fC1Ad (secret)
-PASS deployer balance — 99816.4479989999999942 GEN
 PASS get_judge — 0xE8b3e800d08727D25156a44cD1609F793bd0Af5a
+```
+
+Run A, item 1 on chain:
+
+```
 PASS expire_case setup — case-3 ACCEPTED, deadline in 240s
 PASS expire_case — SETTLED/EXPIRED refund=1000000000000000000
 ```
 
-The two wallets are what makes the live run meaningful: the requester/`tester1` opens and funds cases,
-the provider/`tester2` accepts and delivers, and the adversarial checks (a non-judge calling
+Run B, item 2 on chain — the AI returned a provider-at-fault verdict on a case whose rubric the
+delivered page plainly failed, the provider held a 0.2 GEN stake, and the judge then ruled 5000 bps:
+
+```
+PASS deposit_stake(provider) — 200000000000000000
+PASS adjudicate — verdict=PROVIDER_AT_FAULT award=0 score=0 criteria=2 tx=0x147feaa6…
+PASS judge_rule — SETTLED/JUDGED award=5000 slashed=0
+PASS judge override leaves no slash — JUDGED, slashed 0, stake 200000000000000000, provider paid 500000000000000000
+```
+
+That is exactly the defect the steward named: before the fix the same settlement would have taken
+20% of the reward (0.2 GEN, capped at the stake) out of the provider's stake while paying it 0.5 GEN.
+The provider kept its full stake.
+
+The two wallets are what makes the live runs meaningful: the requester/`tester1` opens and funds
+cases, the provider/`tester2` accepts and delivers, and the adversarial checks (a non-judge calling
 `judge_rule`, oversized evidence) are signed by the wrong wallet on purpose, so the contract's
 rejections are real rejections and not direct-mode mocks.
 
@@ -260,31 +278,30 @@ rejections are real rejections and not direct-mode mocks.
 | --- | --- | --- |
 | `register_agent` | yes | both wallets registered |
 | `deposit_stake` | yes | both wallets, 0.2 GEN each |
-| `open_case` | yes | cases 0, 1, 2 and the expiry case |
+| `open_case` | yes | cases 0, 1, 2, the dispute case and the expiry case |
 | `accept_case` | yes | |
 | `deliver_case` | yes | valid evidence accepted; oversized evidence rejected (expected failure) |
 | `accept_delivery` | yes | case 0 → `SETTLED/ACCEPTED` |
-| `raise_dispute` | yes (earlier run) | adjudication path, `RUN_ADJUDICATION=1`; not repeated in the expiry run to stay inside the request budget |
-| `adjudicate` | yes (earlier run) | real web + LLM consensus run, verdict stored |
-| `judge_rule` | partial | the judge-only rejection is checked in every run (`only judge`); the accepted ruling runs on the adjudication path (`RUN_ADJUDICATION=1`), which the 13ca73e run skipped |
-| `finalize_case` | no (by design) | needs a closed 24-hour appeal window or a judge ruling; see gap below |
+| `raise_dispute` | yes | run B |
+| `adjudicate` | yes | run B: real web + LLM consensus, verdict `PROVIDER_AT_FAULT` stored |
+| `judge_rule` | yes | run B: the judge overrode the award to 5000 bps; the non-judge rejection (`only judge`) is checked in every run |
+| `finalize_case` | no (by design) | needs a closed 24-hour appeal window or a judge ruling; see gaps below |
 | `cancel_case` | yes | case 1 → `SETTLED/CANCELLED` |
 | `withdraw` | yes | provider credit read back as 0 after the transfer |
 | `withdraw_stake` | no (by design) | not in the live script; covered in direct mode |
 | `settle_unresolved` | no (by design) | needs 14 days after adjudication |
-| `expire_case` | **yes, this run** | case 3 → `SETTLED/EXPIRED`, refund credited, provider slot freed |
+| `expire_case` | yes | run A: case 3 → `SETTLED/EXPIRED`, refund credited, provider slot freed |
 | `get_case_count`, `get_case_json`, `get_judge`, `get_credit_of`, `get_agent_handle`, `get_agent_score`, `get_agent_stake` | yes | every read the client uses is read back live |
 
-Live result of the new path: case `case-3` on the deployed contract is `SETTLED/EXPIRED` — an
-`ACCEPTED` case opened with a four-minute deadline, accepted by the provider wallet, waited out, then
-expired by the provider wallet, with `credit_requester` equal to the full reward.
+Current state of the deployed contract: case-0 `SETTLED/ACCEPTED`, case-1 `SETTLED/CANCELLED`,
+case-2 `ACCEPTED` (the oversized-evidence attempt was rejected), case-3 `SETTLED/JUDGED` (the override
+above). The `EXPIRED` case from run A lives on the previous deployment; Studionet keeps state only
+while the node keeps it.
 
-The live script also attempts the two branches that need an AI verdict. The dispute case now uses a
-rubric the evidence plainly fails, the provider deposits a 0.2 GEN stake, and after adjudication the
-judge rules 5000 bps — above the provider-at-fault band on purpose. If the AI returned
-`PROVIDER_AT_FAULT`, the run asserts `JUDGED`, `slashed = 0` and the stake intact; if it returned
-`UNVERIFIABLE`, it asserts the judge ruling settled the case. Any other verdict produces a skip naming
-the actual verdict, so a run never pretends to have proven a branch it did not reach.
+The live script also attempts the UNVERIFIABLE branch: if the AI returns `UNVERIFIABLE`, the same run
+asserts that the judge ruling settles it. Run B's verdict came back `PROVIDER_AT_FAULT`, so that
+branch produced no assertion — the script names the actual verdict in the summary rather than
+claiming a branch it did not reach.
 
 ### Gaps, stated honestly
 
@@ -294,10 +311,19 @@ by the direct-mode suite rather than live:
 - `finalize_case` — requires `RULED` plus a closed 24-hour appeal window (or a judge ruling, which
   settles immediately). Covered by `test_requester_at_fault_credits_provider`,
   `test_double_finalize_reverts`, `test_unverifiable_requires_judge_decision`.
-- `settle_unresolved` — requires 14 days since `adjudicated_ts`. Covered by the three rescue tests.
+- `settle_unresolved` — requires 14 days since `adjudicated_ts`. Covered by the four rescue tests.
 - `withdraw_stake` — reachable live, but the script only deposits. Covered by
   `test_deposit_and_withdraw_stake`, `test_withdraw_stake_blocked_while_agent_has_active_case`, and
   `test_expire_case_releases_a_stuck_accepted_case`, which asserts the block-then-release sequence.
+
+Two further limits worth naming:
+
+- The `UNVERIFIABLE` verdict cannot be forced: it depends on the model judging the evidence
+  insufficient or spotting prompt injection. The contract path and the client controls are tested
+  deterministically; only the live demonstration is at the mercy of the verdict.
+- The client predicates (`isExpired`, `isAwaitingJudge`, `canRescueCase`, `isFinalizable`) have no
+  automated test of their own — the frontend has no test runner, and CI only type-checks and builds
+  it. They are one-line mirrors of the contract rules and are reviewed against them by hand.
 
 If a fully live sweep of those three is wanted, `withdraw_stake` can be added to
 `scripts/studionet.mjs` cheaply (deposit 0.2 GEN, then withdraw part of it while no case is active);
@@ -308,8 +334,8 @@ the other two need a 24-hour and a 14-day wait and are better left to the determ
 | File | Added |
 | --- | --- |
 | `tests/test_case_flow.py` | 6 tests for `expire_case` (see table in section 2) |
-| `tests/test_adjudication.py` | 3 tests (two judge-override boundaries, judge-after-rescue-window) |
-| suite total | 84 → 93, all green in CI |
+| `tests/test_adjudication.py` | 4 tests (two judge-override boundaries, judge-after-rescue-window, provider-side rescue) |
+| suite total | 84 → 94, all green in CI |
 
 ## 7. Files changed
 

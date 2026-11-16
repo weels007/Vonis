@@ -84,11 +84,12 @@ If you record one, a 40–60 second screen capture is enough:
 > the award, and one met/not-met reason per rubric criterion; the `adjudicate` transaction is visible
 > in the explorer. The linked contract already holds four cases: case-0 `SETTLED/ACCEPTED`, case-1
 > `SETTLED/CANCELLED`, case-2 `ACCEPTED` after an oversized-evidence attempt was rejected, and case-3
-> `SETTLED/EXPIRED` through `expire_case`.
+> `SETTLED/JUDGED` — the AI returned `PROVIDER_AT_FAULT` and the judge overrode the award to 50%, so
+> the provider was paid and its stake was not slashed.
 
 **Contract link**
 
-https://explorer-studio.genlayer.com/address/0x80249B8892E82984BbdcE9C1b85548f53D622ac4
+https://explorer-studio.genlayer.com/address/0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e
 
 That address is kept in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`) and rewritten by the `studionet`
 workflow after every deployment, so the app always points at the newest contract.

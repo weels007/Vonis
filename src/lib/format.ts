@@ -113,6 +113,10 @@ export function deadlineToUnix(value: string): number {
 }
 
 export function isFinalizable(c: CaseView): boolean {
+  // `finalize_case` refuses an UNVERIFIABLE case the judge never ruled, so the
+  // settle button must not appear for it: the judge form and the rescue path
+  // are the only routes out of that state.
+  if (c.verdict === "UNVERIFIABLE" && !c.judged) return false;
   return (
     c.status === "RULED" &&
     (c.judged || c.appeal_deadline === 0 || Date.now() / 1000 >= c.appeal_deadline)
@@ -147,9 +151,11 @@ export function canRescueCase(c: CaseView): boolean {
   return isAwaitingJudge(c) && nowSeconds() >= rescueUnlocksAt(c);
 }
 
-// The judge can rule a case that is waiting on a manual decision, and can
-// override a verdict while the case is still unsettled.
+// The judge may rule a case that already has a verdict: that is how an
+// UNVERIFIABLE case gets settled, and how a verdict the judge disagrees with is
+// overridden. A case with no verdict stays on the adjudicate path, so the client
+// never produces a settled case with nothing to show in the verdict card.
 export function isReviewable(c: CaseView): boolean {
-  return c.status === "RULED" || c.status === "DISPUTED";
+  return c.status === "RULED";
 }
 
