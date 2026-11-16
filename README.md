@@ -11,6 +11,13 @@ Status: contract foundation + test suite (Milestone 0–1). 94 tests pass in Git
 (unit, structural lint, consensus, integration, adversarial, runner smoke), and the Studionet
 workflow deploys the contract and drives the full case lifecycle against real validators.
 
+**Live contract on Studionet:** `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e`
+
+That is the address the app reads (`CONTRACT_ADDRESS`) and the one the submission form links. The
+`studionet` workflow rewrites it here, in the app and in `SUBMISSION.md` after every deploy, so all
+three always name the newest contract. The repository itself holds one contract source,
+`contracts/vonis.py`; only the deployed address changes from run to run.
+
 ## Why GenLayer
 
 "Does this delivered work meet the agreement" cannot be reduced to on-chain data. A conventional
@@ -92,10 +99,10 @@ npm run dev
 ```
 
 The contract address is hard-set in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`), not read from the
-environment. The `studionet` workflow rewrites that line after every deployment and commits it, so it
-always follows the newest contract. There is no mock data in the app: every case, verdict and
-per-criterion reason on screen is read from `get_case_json`, and an unreachable contract shows an
-error plus an empty state. It refreshes every 15 seconds.
+environment; it is also printed at the top of this file. The `studionet` workflow rewrites both after
+every deployment and commits them, so they always follow the newest contract. There is no mock data
+in the app: every case, verdict and per-criterion reason on screen is read from `get_case_json`, and
+an unreachable contract shows an error plus an empty state. It refreshes every 15 seconds.
 
 Pages (hash routing, so deep links work on static hosting): landing, case explorer, case detail, new
 case, and transaction history.
@@ -127,8 +134,8 @@ genlayer deploy --contract contracts/vonis.py
 ```
 
 The deployer address becomes the judge. The frontend hard-sets the contract address in
-`CONTRACT_ADDRESS` (`src/lib/genlayer.ts`); it currently holds the latest Studionet run, so it may
-stop existing when the node resets.
+`CONTRACT_ADDRESS` (`src/lib/genlayer.ts`), the same address quoted at the top of this file; it is a
+Studionet deployment, so it may stop existing when the node resets.
 
 The contract's `Depends` header pins a concrete `py-genlayer` runner hash, matching the GenVM
 release the node runs. `py-genlayer:latest` is not deployable: it resolves to the GenVM test runner,
@@ -154,9 +161,9 @@ The frontend is a plain Vite build with hash routing, so it deploys as a static 
 
 No rewrites are needed: every page lives behind `#/`, so deep links resolve to the same `index.html`.
 The wallet needs Studionet (chain id `61999`) in MetaMask, which the connect button offers to add.
-Remember the hard-set address is a Studionet deployment: the workflow records the newest one in
-`CONTRACT_ADDRESS` and commits it, so a connected Vercel project rebuilds on its own. If the node
-resets before a new run, re-run the workflow or edit that one line.
+Remember the address quoted at the top of this file is a Studionet deployment: the workflow records
+the newest one in `CONTRACT_ADDRESS` and in this file, and commits both, so a connected Vercel project
+rebuilds on its own. If the node resets before a new run, re-run the workflow or edit those lines.
 
 Automated deploy: `.github/workflows/studionet.yml` runs `scripts/studionet.mjs`, which deploys,
 checks that code really exists at the reported address (a failed deploy otherwise leaves only a
@@ -166,8 +173,9 @@ message carries `[studionet]` (add `[adjudication]` to also run the real LLM dis
 has the judge override the award and asserts that a `PROVIDER_AT_FAULT` verdict keeps no stake slash).
 Every
 receipt poll waits 10 seconds, which keeps the run inside Studionet's request budget. After a
-successful run it writes the new address into `CONTRACT_ADDRESS` and commits that, so static hosts
-follow the deployment; the commit touches only `src/`, so it never starts another live run.
+successful run it writes the new address into `CONTRACT_ADDRESS`, the line at the top of this file and
+the link in `SUBMISSION.md`, and commits them, so static hosts follow the deployment; those files are
+outside the workflow's path filter, so the commit never starts another live run.
 
 ## Security properties enforced by tests
 

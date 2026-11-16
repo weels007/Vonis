@@ -6,7 +6,8 @@ proved the judge override (`PROVIDER_AT_FAULT` → judge rules 50% → `JUDGED`,
 deployment is the one from the second run.
 
 - Contract: `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e` — this is the one the frontend uses
-  (`CONTRACT_ADDRESS` in `src/lib/genlayer.ts`) and the one [SUBMISSION.md](SUBMISSION.md) links.
+  (`CONTRACT_ADDRESS` in `src/lib/genlayer.ts`), the one quoted in `README.md` and the one
+  [SUBMISSION.md](SUBMISSION.md) links.
 - Explorer: https://explorer-studio.genlayer.com/address/0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e
 
 Every Studionet run deploys its own contract, because the node keeps state only while it keeps it.

@@ -84,11 +84,11 @@ jobs:
           RUN_EXPIRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_expiry) && '1' || (contains(github.event.head_commit.message, '[expiry]') && '1') || '0' }}
         run: node scripts/studionet.mjs
 
-      # Studionet state is temporary and every run deploys its own contract, so
-      # the frontend constant has to follow the newest address; the commit only
-      # touches src/, which the live workflow's path filter ignores. This runs
-      # even when a later check fails, because a slow optional check must not
-      # leave the app pointing at a contract that no longer exists.
+      # Studionet state is temporary and every run deploys its own contract, so the app and
+      # the docs that quote the address have to follow the newest one. This runs even when a
+      # later check fails, because a slow optional check must not leave them pointing at a
+      # contract that no longer exists. README.md and SUBMISSION.md are outside this
+      # workflow's path filter, so the commit cannot start another live run.
       - name: Record the deployed address
         if: always()
         run: node scripts/record-address.mjs
@@ -96,12 +96,12 @@ jobs:
       - name: Commit the address
         if: always()
         run: |
-          if git diff --quiet -- src/lib/genlayer.ts; then
-            echo "the frontend already points at this deployment"
+          if git diff --quiet -- src/lib/genlayer.ts README.md SUBMISSION.md; then
+            echo "the app and the docs already point at this deployment"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/lib/genlayer.ts
-          git commit -m "Record Studionet deployment ${CONTRACT_ADDRESS} in the frontend"
+          git add src/lib/genlayer.ts README.md SUBMISSION.md
+          git commit -m "Record Studionet deployment ${CONTRACT_ADDRESS} in the app and docs"
           git push

@@ -108,8 +108,9 @@ roughly thirty requests a minute, and polling faster is what makes a live run sl
   base64. Without a second wallet the script funds a throwaway provider key from the Studio simulator.
 - Studionet state is temporary, so every run deploys its own contract and prints the address in the
   job summary. Do not treat that address as permanent; it is only valid while the node keeps the
-  state. The workflow then writes it into `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`) and commits,
-  so a static host rebuilds without a manual edit.
+  state. The workflow then writes it into `CONTRACT_ADDRESS` (`src/lib/genlayer.ts`), the
+  `Live contract on Studionet` line in `README.md` and the explorer link in `SUBMISSION.md`, and
+  commits all three, so a static host rebuilds and the docs never quote a dead address.
 - The step summary is where the result table and the contract address live.
 - Expect two failed transactions in the explorer from every run: `judge_rule` sent by the non-judge
   wallet and `deliver_case` with oversized evidence. Both are adversarial checks — the contract must
