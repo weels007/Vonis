@@ -18,6 +18,10 @@ const ONE_GEN = parseEther("1");
 const SPEC_URL = "https://example.com";
 const EVIDENCE_URL = "https://example.com";
 const RUBRIC = "1. The page loads\n2. The page contains the word Example";
+// A rubric the evidence plainly fails, so the AI is likely to return
+// PROVIDER_AT_FAULT and the judge override can be exercised for real.
+const STRICT_RUBRIC =
+  '1. The page contains the phrase "Vonis steward 2026"\n2. The page links to an on-chain dispute court';
 
 // Studionet allows roughly thirty requests a minute and a poll is a request, so
 // a ten second interval keeps a whole run inside that budget.
@@ -487,6 +491,11 @@ async function main() {
         throw new Error(`handle is "${handle}" after register_agent`);
       }
       pass("register_agent(provider)", handle);
+      // A stake is what the provider-at-fault slash is taken from, so the judge
+      // override check has something to prove.
+      await write(c2, address, "deposit_stake", [], parseEther("0.2"));
+      const providerStake = await read(c1, address, "get_agent_stake", [account2.address]);
+      pass("deposit_stake(provider)", String(providerStake));
     } catch (error) {
       fail("register_agent(provider)", describeError(error));
     }
@@ -646,14 +655,14 @@ async function main() {
         c1,
         address,
         "open_case",
-        [account2.address, "Disputed delivery", SPEC_URL, RUBRIC, 4102444800],
+        [account2.address, "Disputed delivery", SPEC_URL, STRICT_RUBRIC, 4102444800],
         ONE_GEN
       );
       await write(c2, address, "accept_case", ["case-3"]);
       await write(c2, address, "deliver_case", ["case-3", EVIDENCE_URL]);
       await write(c1, address, "raise_dispute", [
         "case-3",
-        "The page does not contain the required content.",
+        "The required content and the dispute-court link are missing from the delivered page.",
       ]);
       pass("raise_dispute");
 
@@ -702,9 +711,44 @@ async function main() {
       if (json.status !== "RULED") fail("adjudicate ruled", `case status is ${json.status}`);
       if (!json.verdict) fail("adjudicate verdict", "empty verdict");
 
+      const aiVerdict = String(json.verdict);
+      // 5000 bps is deliberately above the provider-at-fault band (2500), so a
+      // PROVIDER_AT_FAULT verdict has to become a manual JUDGED ruling.
       await write(c1, address, "judge_rule", ["case-3", 5000, "Manual settlement after audit"]);
       const settled = JSON.parse(String(await read(c1, address, "get_case_json", ["case-3"])));
-      pass("judge_rule", `${settled.status}/${settled.verdict}`);
+      pass(
+        "judge_rule",
+        `${settled.status}/${settled.verdict} award=${settled.award_bps} slashed=${settled.slashed}`
+      );
+
+      if (settled.status !== "SETTLED") {
+        fail("judge_rule settled", settled.status);
+      } else if (aiVerdict === "PROVIDER_AT_FAULT") {
+        // Steward fix 2: an award above the fault band must not keep the slash.
+        const stake = String(await read(c1, address, "get_agent_stake", [account2.address]));
+        if (settled.verdict !== "JUDGED") {
+          fail("judge override verdict", `${aiVerdict} -> ${settled.verdict}`);
+        } else if (Number(settled.slashed) !== 0 || stake !== String(parseEther("0.2"))) {
+          fail("judge override leaves no slash", `slashed=${settled.slashed} stake=${stake}`);
+        } else {
+          pass(
+            "judge override leaves no slash",
+            `JUDGED, slashed 0, stake ${stake}, provider paid ${settled.credit_provider}`
+          );
+        }
+      } else if (aiVerdict === "UNVERIFIABLE") {
+        // Steward fix 3: the judge path settles a case the AI could not decide.
+        if (settled.verdict !== "JUDGED") {
+          fail("judge ruling on UNVERIFIABLE", settled.verdict);
+        } else {
+          pass("judge ruling on UNVERIFIABLE", `${settled.status}/${settled.verdict}`);
+        }
+      } else {
+        skip(
+          "judge override / unverifiable branch",
+          `the AI returned ${aiVerdict}; PROVIDER_AT_FAULT or UNVERIFIABLE needed to exercise it`
+        );
+      }
     } catch (error) {
       fail("dispute path", describeError(error));
     }

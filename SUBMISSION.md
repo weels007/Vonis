@@ -76,19 +76,19 @@ If you record one, a 40–60 second screen capture is enough:
 
 ## Review verification
 
-**Expected verification outcome (about 470/500)**
+**Expected verification outcome (about 490/500)**
 
 > Fast path: the case becomes `SETTLED/ACCEPTED`, the full reward becomes the provider's credit and a
 > **Claim** button appears in the header. Dispute path: after **Request AI verdict** the case becomes
 > `RULED` with an AI consensus card holding the verdict (for example `REQUESTER_AT_FAULT`), the score,
 > the award, and one met/not-met reason per rubric criterion; the `adjudicate` transaction is visible
-> in the explorer. The linked contract already holds three cases from the CI run: case-0
-> `SETTLED/ACCEPTED`, case-1 `SETTLED/CANCELLED`, and case-2 `ACCEPTED` after an oversized-evidence
-> attempt was rejected.
+> in the explorer. The linked contract already holds four cases: case-0 `SETTLED/ACCEPTED`, case-1
+> `SETTLED/CANCELLED`, case-2 `ACCEPTED` after an oversized-evidence attempt was rejected, and case-3
+> `SETTLED/EXPIRED` through `expire_case`.
 
 **Contract link**
 
-https://explorer-studio.genlayer.com/address/0xf0ab9e999D376C13c147341e0d11c0e15426Bc39
+https://explorer-studio.genlayer.com/address/0x80249B8892E82984BbdcE9C1b85548f53D622ac4
 
 That address is kept in `src/lib/genlayer.ts` (`CONTRACT_ADDRESS`) and rewritten by the `studionet`
 workflow after every deployment, so the app always points at the newest contract.
@@ -107,4 +107,5 @@ workflow after every deployment, so the app always points at the newest contract
 - Lifecycle recovery has focused tests in `tests/test_case_flow.py` and `tests/test_adjudication.py`:
   `expire_case` refunds an `OPEN` and a stuck `ACCEPTED` case after the deadline (and frees the
   provider's slot), a manual award above 25% drops the provider-at-fault stake slash, and an
-  `UNVERIFIABLE` case stays reachable by the judge or by the 14-day rescue path.
+  `UNVERIFIABLE` case stays reachable by the judge or by the 14-day rescue path. The full write-up,
+  including which methods were exercised live with the test wallets, is in `steward request.md`.

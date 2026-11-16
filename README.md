@@ -52,6 +52,8 @@ Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, pl
 - `index.html`, `src/` — Vite + React frontend (landing page, case explorer, case pages, new case,
   transaction history).
 - `docs/ARCHITECTURE.md` — design, invariants, consensus strategy, security, deployment, roadmap.
+- `SUBMISSION.md` — form-ready submission text; `steward request.md` — the lifecycle recovery
+  request, how each part was solved, and what the live Studionet run actually exercised.
 - `.github/workflows/ci.yml` — contract tests plus frontend type-check and build.
 
 ## Running the tests
