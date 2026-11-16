@@ -7,7 +7,7 @@ requester rejects the delivery, a dispute opens and a **verdict** is produced by
 the evidence against the acceptance rubric — then **independently re-verified by GenLayer
 validators**. Only deterministic code moves money.
 
-Status: contract foundation + test suite (Milestone 0–1). 84 tests pass in GitHub Actions
+Status: contract foundation + test suite (Milestone 0–1). 93 tests pass in GitHub Actions
 (unit, structural lint, consensus, integration, adversarial, runner smoke), and the Studionet
 workflow deploys the contract and drives the full case lifecycle against real validators.
 
@@ -33,13 +33,17 @@ provides three things an oracle or a centralised backend cannot:
   verdict, validators re-run the task and compare the decision fields.
 - `finalize_case` — after the 24-hour appeal window, funds are credited according to `award_bps`.
 - `judge_rule` — the judge (deployer address) can rule manually, including for `UNVERIFIABLE` cases
-  or prompt-injection flags.
+  or prompt-injection flags. A manual award above 25% replaces a provider-at-fault verdict, so the
+  stake slash bound to that verdict is never applied on top of a payout the judge awarded.
 - `settle_unresolved` — if the judge never rules an `UNVERIFIABLE` case, either party can unwind the
   escrow (full refund) once the 14-day rescue window has passed, so funds cannot stay locked.
+- `expire_case` — once the delivery deadline has passed, an `OPEN` or `ACCEPTED` case that was never
+  delivered is unwound by either party or the judge: the reward returns to the requester and the
+  provider's open slot is freed, with no slash and no score change (expiry is not a finding of fault).
 - `withdraw` — each party pulls its own credit (pull payment).
 
 Status: `OPEN → ACCEPTED → DELIVERED → DISPUTED → RULED → SETTLED`, plus `CANCELLED` through
-`cancel_case` before delivery.
+`cancel_case` before delivery and `EXPIRED` through `expire_case` after the delivery deadline.
 
 ## Repository layout
 
@@ -171,7 +175,10 @@ follow the deployment; the commit touches only `src/`, so it never starts anothe
   2500 at provider fault, 5000 or 7500 shared, 9000 or 10000 at requester fault), so validators agree
   on the same stored number that pays out.
 - An `UNVERIFIABLE` case the judge never rules can be refunded by either party after 14 days
-  (`settle_unresolved`); no path leaves the reward locked forever.
+  (`settle_unresolved`), and an `OPEN`/`ACCEPTED` case past its delivery deadline can be expired by
+  either party or the judge (`expire_case`); no path leaves the reward or a provider slot stuck.
+- A manual ruling never keeps a contradictory slash: an award above 25% on a provider-at-fault case
+  becomes a `JUDGED` ruling, so the provider is not paid and slashed in the same settlement.
 - The contract defines no `__receive__` handler: GenVM rejects a bare value transfer, and nothing can
   enter except through `open_case` (escrow) or `deposit_stake`.
 - Evidence is limited to 3 URLs, bounded length, http/https only.
@@ -187,4 +194,7 @@ follow the deployment; the commit touches only `src/`, so it never starts anothe
 - The real LLM dispute path (`adjudicate` with web access) is behind `RUN_ADJUDICATION=1`: tick the
   input on a manual run, or add `[adjudication]` to the commit message. It is not part of the default
   run because it takes minutes.
+- The live expiry path is behind `RUN_EXPIRY=1` (`run_expiry` on a manual run, or `[expiry]` in the
+  commit message) because it has to wait out a real delivery deadline; the direct-mode suite covers
+  `expire_case` on every run.
 - Multi-judge/DAO, a protocol-appeal UI, and cross-application reputation.

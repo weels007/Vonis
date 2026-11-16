@@ -62,6 +62,8 @@ OPEN --accept_case--> ACCEPTED --deliver_case--> DELIVERED --accept_delivery--> 
   |                                              +--raise_dispute--> DISPUTED --adjudicate--> RULED
   |                                              |                                            |
   +--cancel_case--> RULED --finalize--> SETTLED  +--(judge_rule)------------------------------+
+  |
+  +--expire_case (past delivery_deadline)--> RULED --> SETTLED
 ```
 
 Key rules:
@@ -70,6 +72,8 @@ Key rules:
 - `finalize_case` requires `RULED` and a closed appeal window, unless the judge rules
   (`judge_rule`), which settles immediately.
 - `UNVERIFIABLE` cannot be finalized without `judge_rule`.
+- `expire_case` needs `OPEN` or `ACCEPTED` plus a passed `delivery_deadline`; it refunds the requester
+  and decrements `active_cases`, so `cancel_case`'s deadline cutoff cannot strand escrow or a slot.
 - `SETTLED` is final; every other path refuses it.
 
 ## 6. Adjudication
@@ -153,12 +157,20 @@ of loosening tolerance.
 - `UNVERIFIABLE` — the judge rules by hand. If the judge never does, either party can call
   `settle_unresolved` after `RESCUE_WINDOW` (14 days) and the reward is refunded in full, without a
   score penalty, so escrow can never stay locked forever.
+- `EXPIRED` — `expire_case` refunds the requester in full once the delivery deadline has passed on an
+  `OPEN` or `ACCEPTED` case, without a slash or a score change: nothing was delivered, so there is no
+  ruling on fault to make. The provider's `active_cases` still drops, so an abandoned engagement cannot
+  pin its stake forever.
+- `judge_rule` cannot leave a contradiction behind. The stake slash belongs to the
+  `PROVIDER_AT_FAULT` verdict, so a manual award above 25% (`AWARD_PROVIDER_MAX`) records the ruling as
+  `JUDGED` instead: the provider is paid the larger award and is not slashed on top of it. An award at
+  or below 25% keeps the fault verdict and its slash.
 
 `withdraw_stake` is blocked while an agent has active cases. `deposit_stake` is only for registered
 agents.
 
 Reputation: award ≥9000 → `cases_won+1`, score +5; award ≤3000 → `cases_lost+1`, score −10;
-`CANCELLED` cases do not change reputation. Score is clamped to 0..100.
+`CANCELLED` and `EXPIRED` cases do not change reputation. Score is clamped to 0..100.
 
 ## 8. Limits and validation
 

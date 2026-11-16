@@ -7,6 +7,10 @@ on:
         description: "Run the real LLM dispute path (takes several minutes)"
         type: boolean
         default: true
+      run_expiry:
+        description: "Wait out a delivery deadline and check expire_case (about 5 minutes)"
+        type: boolean
+        default: false
 
   push:
     branches: [main]
@@ -77,15 +81,20 @@ jobs:
           TEST2_KEYSTORE: ${{ secrets.VONIS_TESTER2_KEYSTORE || secrets.VONIS_TEST2_KEYSTORE || secrets.TESTER2_KEYSTORE || secrets.CLAUSEGUARD_TESTER2_KEYSTORE }}
           TEST2_PASSWORD: ${{ secrets.VONIS_TESTER2_PASSWORD || secrets.VONIS_TEST2_PASSWORD || secrets.TESTER2_PASSWORD || secrets.CLAUSEGUARD_TESTER2_PASSWORD }}
           RUN_ADJUDICATION: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_adjudication) && '1' || (contains(github.event.head_commit.message, '[adjudication]') && '1') || '0' }}
+          RUN_EXPIRY: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_expiry) && '1' || (contains(github.event.head_commit.message, '[expiry]') && '1') || '0' }}
         run: node scripts/studionet.mjs
 
       # Studionet state is temporary and every run deploys its own contract, so
       # the frontend constant has to follow the newest address; the commit only
-      # touches src/, which the live workflow's path filter ignores.
+      # touches src/, which the live workflow's path filter ignores. This runs
+      # even when a later check fails, because a slow optional check must not
+      # leave the app pointing at a contract that no longer exists.
       - name: Record the deployed address
+        if: always()
         run: node scripts/record-address.mjs
 
       - name: Commit the address
+        if: always()
         run: |
           if git diff --quiet -- src/lib/genlayer.ts; then
             echo "the frontend already points at this deployment"

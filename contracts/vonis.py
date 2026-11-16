@@ -4,6 +4,7 @@
 Flow:
     open_case -> accept_case -> deliver_case -> (accept_delivery | raise_dispute)
     raise_dispute -> adjudicate -> finalize_case (or judge_rule for appeals)
+    an OPEN or ACCEPTED case past its delivery deadline -> expire_case
 
 Design notes:
 * Only deterministic code moves value. The nondeterministic block produces a
@@ -41,6 +42,10 @@ SLASH_BPS = 2000
 # If the judge never rules an UNVERIFIABLE case, either party can unwind the
 # escrow after this window; funds can never stay locked forever.
 RESCUE_WINDOW = 14 * 24 * 3600
+# The largest award that is still consistent with a provider-at-fault verdict.
+# The verdict and the award are one decision, so a stake slash may only be
+# applied while the provider's share stays inside this band.
+AWARD_PROVIDER_MAX = 2500
 
 STATUS_OPEN = "OPEN"
 STATUS_ACCEPTED = "ACCEPTED"
@@ -55,6 +60,7 @@ VERDICT_SHARED = "SHARED"
 VERDICT_UNVERIFIABLE = "UNVERIFIABLE"
 VERDICT_ACCEPTED = "ACCEPTED"
 VERDICT_CANCELLED = "CANCELLED"
+VERDICT_EXPIRED = "EXPIRED"
 VERDICT_JUDGED = "JUDGED"
 
 VERDICTS = (
@@ -139,7 +145,7 @@ def _band_award(award: int, verdict: str) -> int:
     runs can disagree on by a few basis points.
     """
     if verdict == VERDICT_PROVIDER:
-        options = (0, 2500)
+        options = (0, AWARD_PROVIDER_MAX)
     elif verdict == VERDICT_SHARED:
         options = (5000, 7500)
     elif verdict == VERDICT_REQUESTER:
@@ -679,6 +685,35 @@ class Vonis(gl.Contract):
         self._finalize(case_id, u256(0))
 
     @gl.public.write
+    def expire_case(self, case_id: str) -> None:
+        """Release an engagement nobody delivered before its deadline.
+
+        A case that was never accepted, or accepted and never delivered, has no
+        delivery to judge: its deadline is the only outcome left. Once that
+        deadline has passed, either party (or the judge) can unwind it, so the
+        requester's escrow and the provider's open slot can never be stranded by
+        a counterparty who simply stops responding. Expiry is not a finding of
+        fault, so no stake is slashed and no reputation is touched.
+        """
+        case = self._case(case_id)
+
+        sender = gl.message.sender_address
+        _req(
+            sender == case.requester or sender == case.provider or sender == self.judge,
+            "not allowed to expire",
+        )
+        _req(case.status in (STATUS_OPEN, STATUS_ACCEPTED), "case cannot be expired")
+        _req(int(_now()) > int(case.delivery_deadline), "deadline still open")
+
+        case.status = STATUS_RULED
+        case.verdict = VERDICT_EXPIRED
+        case.award_bps = u256(0)
+        case.reasons = "delivery deadline passed without a delivery; reward refunded"
+        case.appeal_deadline = _now()
+        self.cases[case_id] = case
+        self._finalize(case_id, u256(0), penalize=False)
+
+    @gl.public.write
     def deliver_case(self, case_id: str, evidence: str) -> None:
         case = self._case(case_id)
         _req(case.status == STATUS_ACCEPTED, "case not accepted")
@@ -791,6 +826,13 @@ class Vonis(gl.Contract):
         case.award_bps = award
         case.judge_note = note
         if case.verdict == VERDICT_UNVERIFIABLE:
+            case.verdict = VERDICT_JUDGED
+        elif case.verdict == VERDICT_PROVIDER and int(award) > AWARD_PROVIDER_MAX:
+            # The stake slash belongs to the provider-at-fault verdict, but a
+            # manual award above that band says the provider earned most of the
+            # reward. Keeping both would pay the provider and slash it in the
+            # same settlement, so the ruling becomes a manual one and the
+            # verdict-based slash no longer applies.
             case.verdict = VERDICT_JUDGED
         self.cases[case_id] = case
         self._finalize(case_id, award)

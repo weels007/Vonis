@@ -37,7 +37,7 @@ export default function Landing({ verdictCase }: Props) {
         </div>
         <div className="hero-stats">
           <div>
-            <strong>84</strong>
+            <strong>93</strong>
             <span>contract tests passing</span>
           </div>
           <div>

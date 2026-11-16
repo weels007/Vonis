@@ -66,6 +66,14 @@ If you record one, a 40–60 second screen capture is enough:
 
 > Each side clicks **Claim** in the header to withdraw its credit.
 
+**Step 6 — Recover a case that has no delivery**
+
+> If nobody delivers, the case card switches **Cancel and refund** for **Expire and refund the
+> requester** once the delivery deadline has passed; the requester, the provider or the judge can send
+> it, and the provider's slot is freed. If the AI returns `UNVERIFIABLE`, the card explains that the
+> case is waiting on the judge: the judge wallet gets a **Judge ruling** form (provider share in % plus
+> a note), and after 14 days either party gets **Release the escrow**.
+
 ## Review verification
 
 **Expected verification outcome (about 470/500)**
@@ -96,3 +104,7 @@ workflow after every deployment, so the app always points at the newest contract
   new address in the frontend and commits it, and the step summary prints the address to paste here.
 - The judge for deploys is the deploying wallet (`VONIS_TESTER1_KEYSTORE`); the frontend reads
   `get_judge` and only shows *Request AI verdict* to the requester, the provider or the judge.
+- Lifecycle recovery has focused tests in `tests/test_case_flow.py` and `tests/test_adjudication.py`:
+  `expire_case` refunds an `OPEN` and a stuck `ACCEPTED` case after the deadline (and frees the
+  provider's slot), a manual award above 25% drops the provider-at-fault stake slash, and an
+  `UNVERIFIABLE` case stays reachable by the judge or by the 14-day rescue path.

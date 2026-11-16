@@ -276,7 +276,14 @@ export default function App() {
         {error && <div className="toast error error-banner">{error}</div>}
 
         {route.name === "landing" ? (
-          <Landing verdictCase={cases.find((item) => item.verdict) ?? null} />
+          <Landing
+            verdictCase={
+              cases.find(
+                (item) =>
+                  !!item.verdict && item.verdict !== "EXPIRED" && item.verdict !== "CANCELLED"
+              ) ?? null
+            }
+          />
         ) : (
           <>
             {route.name === "cases" && <CasesPage cases={cases} />}

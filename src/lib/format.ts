@@ -66,6 +66,7 @@ const VERDICT_LABELS: Record<string, string> = {
   UNVERIFIABLE: "Unverifiable",
   ACCEPTED: "Accepted by requester",
   CANCELLED: "Cancelled",
+  EXPIRED: "Expired without a delivery",
   JUDGED: "Ruled by judge",
 };
 
@@ -85,6 +86,8 @@ export function verdictTone(verdict: string): string {
     case "JUDGED":
       return "warn";
     case "UNVERIFIABLE":
+    case "EXPIRED":
+    case "CANCELLED":
       return "muted";
     default:
       return "";
@@ -115,3 +118,38 @@ export function isFinalizable(c: CaseView): boolean {
     (c.judged || c.appeal_deadline === 0 || Date.now() / 1000 >= c.appeal_deadline)
   );
 }
+
+// Mirrors RESCUE_WINDOW in the contract: either party may refund an
+// UNVERIFIABLE case the judge never ruled once this window has passed.
+const RESCUE_WINDOW = 14 * 24 * 3600;
+
+function nowSeconds(): number {
+  return Date.now() / 1000;
+}
+
+export function rescueUnlocksAt(c: CaseView): number {
+  return c.adjudicated_ts + RESCUE_WINDOW;
+}
+
+export function isExpired(c: CaseView): boolean {
+  return (
+    (c.status === "OPEN" || c.status === "ACCEPTED") &&
+    c.delivery_deadline > 0 &&
+    nowSeconds() > c.delivery_deadline
+  );
+}
+
+export function isAwaitingJudge(c: CaseView): boolean {
+  return c.status === "RULED" && c.verdict === "UNVERIFIABLE" && !c.judged;
+}
+
+export function canRescueCase(c: CaseView): boolean {
+  return isAwaitingJudge(c) && nowSeconds() >= rescueUnlocksAt(c);
+}
+
+// The judge can rule a case that is waiting on a manual decision, and can
+// override a verdict while the case is still unsettled.
+export function isReviewable(c: CaseView): boolean {
+  return c.status === "RULED" || c.status === "DISPUTED";
+}
+

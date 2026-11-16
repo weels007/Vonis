@@ -1,10 +1,15 @@
 import { useState } from "react";
 import type { CaseView } from "../lib/types";
 import {
+  canRescueCase,
   formatDate,
   formatGen,
+  isAwaitingJudge,
+  isExpired,
   isFinalizable,
+  isReviewable,
   percent,
+  rescueUnlocksAt,
   sameAddress,
   shortAddress,
   statusLabel,
@@ -31,6 +36,10 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
   const [evidence, setEvidence] = useState("");
   const [claim, setClaim] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [judgeAward, setJudgeAward] = useState(() =>
+    c.award_bps > 0 ? String(c.award_bps / 100) : ""
+  );
+  const [judgeNote, setJudgeNote] = useState("");
 
   const isRequester = sameAddress(c.requester, account);
   const isProvider = sameAddress(c.provider, account);
@@ -47,6 +56,22 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
   const canAdjudicate = c.status === "DISPUTED" && (isRequester || isProvider || isJudge);
   const canFinalize = isFinalizable(c);
   const canCancel = (c.status === "OPEN" || c.status === "ACCEPTED") && isRequester;
+  // Past the delivery deadline the requester's cancel path is closed, so the
+  // expiry path is what releases the escrow and the provider's open slot.
+  const canExpire = isExpired(c) && (isRequester || isProvider || isJudge);
+  const awaitingJudge = isAwaitingJudge(c);
+  const canRescue = canRescueCase(c) && (isRequester || isProvider);
+  const canRule = isJudge && isReviewable(c) && !settled;
+
+  const judgePercent = Number(judgeAward);
+  const judgeBps =
+    judgeAward.trim() !== "" &&
+    Number.isFinite(judgePercent) &&
+    judgePercent >= 0 &&
+    judgePercent <= 100
+      ? Math.round(judgePercent * 100)
+      : null;
+
   const hasActions =
     canAccept ||
     canDeliver ||
@@ -54,7 +79,10 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
     canDispute ||
     canAdjudicate ||
     canFinalize ||
-    canCancel;
+    canCancel ||
+    canExpire ||
+    canRescue ||
+    canRule;
 
   const hasVerdict = !!c.verdict;
   const scoreColor =
@@ -67,6 +95,9 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
   const adjudicateKey = "adjudicate:" + c.id;
   const finalizeKey = "finalize:" + c.id;
   const cancelKey = "cancel:" + c.id;
+  const expireKey = "expire:" + c.id;
+  const rescueKey = "rescue:" + c.id;
+  const judgeRuleKey = "judge-rule:" + c.id;
 
   return (
     <div className="detail">
@@ -130,6 +161,21 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
           </p>
         )}
       </section>
+
+      {awaitingJudge && (
+        <p className="muted">
+          The AI could not decide from the evidence alone, so this case waits on a judge ruling.
+          If none is recorded, either party can release the escrow as of{" "}
+          {formatDate(rescueUnlocksAt(c))}.
+        </p>
+      )}
+
+      {isExpired(c) && !canExpire && (
+        <p className="muted">
+          The delivery deadline has passed. The requester, the provider or the judge can expire
+          this case to refund the reward.
+        </p>
+      )}
 
       {c.claim ? (
         <section>
@@ -281,6 +327,76 @@ export default function CaseDetail({ c, account, judge, pendingKeys, onAction }:
             >
               {pending(finalizeKey) ? "Settling…" : "Settle and pay out"}
             </button>
+          )}
+
+          {canExpire && (
+            <button
+              type="button"
+              disabled={noWallet || pending(expireKey)}
+              onClick={() => onAction(expireKey, "Expire case", "expire_case", [c.id])}
+            >
+              {pending(expireKey) ? "Expiring…" : "Expire and refund the requester"}
+            </button>
+          )}
+
+          {canRescue && (
+            <button
+              type="button"
+              disabled={noWallet || pending(rescueKey)}
+              onClick={() =>
+                onAction(rescueKey, "Release escrow", "settle_unresolved", [c.id])
+              }
+            >
+              {pending(rescueKey) ? "Releasing…" : "Release the escrow (14-day rescue)"}
+            </button>
+          )}
+
+          {canRule && (
+            <div className="field">
+              <label htmlFor={"judge-award-" + c.id}>
+                Judge ruling — provider share of the reward (%)
+              </label>
+              <input
+                id={"judge-award-" + c.id}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={100}
+                step={1}
+                value={judgeAward}
+                placeholder="70"
+                onChange={(event) => setJudgeAward(event.target.value)}
+              />
+              <label htmlFor={"judge-note-" + c.id}>Ruling note</label>
+              <textarea
+                id={"judge-note-" + c.id}
+                rows={2}
+                maxLength={1200}
+                value={judgeNote}
+                placeholder="Why this ruling replaces the automated verdict"
+                onChange={(event) => setJudgeNote(event.target.value)}
+              />
+              <button
+                type="button"
+                disabled={
+                  noWallet || pending(judgeRuleKey) || judgeBps === null || !judgeNote.trim()
+                }
+                onClick={() => {
+                  if (judgeBps === null) return;
+                  onAction(judgeRuleKey, "Record judge ruling", "judge_rule", [
+                    c.id,
+                    judgeBps,
+                    judgeNote.trim(),
+                  ]);
+                }}
+              >
+                {pending(judgeRuleKey) ? "Settling…" : "Record ruling and settle"}
+              </button>
+              <p className="muted">
+                Awarding more than 25% replaces a provider-at-fault verdict instead of slashing
+                the stake on top of the payout.
+              </p>
+            </div>
           )}
 
           {canCancel && (

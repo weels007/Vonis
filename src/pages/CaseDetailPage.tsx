@@ -41,6 +41,7 @@ export default function CaseDetailPage({
       {item ? (
         <section className="panel">
           <CaseDetail
+            key={item.id}
             c={item}
             account={account}
             judge={judge}

@@ -313,3 +313,80 @@ def test_a_judged_case_cannot_be_rescued(court, direct_vm, direct_owner, alice, 
     direct_vm.sender = alice
     with direct_vm.expect_revert("case is not ruled"):
         court.settle_unresolved(case_id)
+
+
+def test_judge_override_above_the_fault_band_leaves_no_slash(
+    court, direct_vm, direct_owner, alice, bob
+):
+    """A manual award that contradicts the fault verdict must not keep the slash.
+
+    The provider-at-fault verdict implies a 20% stake slash, but a judge who
+    awards most of the reward to the provider cannot also punish it in the same
+    settlement: the ruling replaces the verdict instead.
+    """
+    case_id = adjudicated_case(
+        court,
+        direct_vm,
+        alice,
+        bob,
+        VERDICT_PROVIDER,
+        2000,
+        score=40,
+        met=(True, False),
+        stake=1000,
+    )
+
+    assert court.get_case_verdict(case_id) == VERDICT_PROVIDER
+    assert int(court.get_agent_stake(bob)) == 1000
+
+    direct_vm.sender = direct_owner
+    court.judge_rule(case_id, 7000, "Manual review: most of the work was delivered.")
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_verdict(case_id) == "JUDGED"
+    assert int(court.get_case_award_bps(case_id)) == 7000
+    assert court.get_case_payouts(case_id) == "700|300|0"
+    assert int(court.get_agent_stake(bob)) == 1000
+    assert int(court.get_stakes_total()) == 1000
+    assert court.get_case_judge_note(case_id) != ""
+
+
+def test_judge_override_inside_the_fault_band_keeps_the_slash(
+    court, direct_vm, direct_owner, alice, bob
+):
+    case_id = adjudicated_case(
+        court,
+        direct_vm,
+        alice,
+        bob,
+        VERDICT_PROVIDER,
+        2000,
+        score=40,
+        met=(True, False),
+        stake=1000,
+    )
+
+    direct_vm.sender = direct_owner
+    court.judge_rule(case_id, 2500, "The provider still carried the fault.")
+
+    assert court.get_case_verdict(case_id) == VERDICT_PROVIDER
+    # 250 to the provider, 750 refunded plus the 200 slash to the requester.
+    assert court.get_case_payouts(case_id) == "250|950|200"
+    assert int(court.get_agent_stake(bob)) == 800
+
+
+def test_the_judge_can_still_rule_after_the_rescue_window(
+    court, direct_vm, direct_owner, alice, bob
+):
+    """The rescue path is a fallback: a late judge ruling still settles the case."""
+    case_id = adjudicated_case(
+        court, direct_vm, alice, bob, VERDICT_UNVERIFIABLE, 0, score=0
+    )
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = direct_owner
+    court.judge_rule(case_id, 6000, "Evidence recovered off chain; partial credit.")
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_verdict(case_id) == "JUDGED"
+    assert court.get_case_payouts(case_id) == "600|400|0"

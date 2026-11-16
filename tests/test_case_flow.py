@@ -285,3 +285,105 @@ def test_unknown_case_is_rejected(court, direct_vm, alice):
     direct_vm.sender = alice
     with direct_vm.expect_revert("case not found"):
         court.get_case_status("case-404")
+
+
+def test_expire_case_refunds_an_open_case(court, direct_vm, alice, bob):
+    """An engagement the provider never accepted cannot hold the escrow."""
+    register_provider(court, direct_vm, bob)
+    case_id = open_case(court, direct_vm, alice, bob)
+
+    assert court.get_case_status(case_id) == "OPEN"
+    assert int(court.get_agent_active_cases(bob)) == 1
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = alice
+    court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_verdict(case_id) == "EXPIRED"
+    assert court.get_case_payouts(case_id) == "0|1000|0"
+    assert int(court.get_credit_of(alice)) == REWARD
+    assert int(court.get_credit_of(bob)) == 0
+    assert int(court.get_escrow_total()) == 0
+    assert int(court.get_credits_total()) == REWARD
+
+    # Expiry is not a finding of fault: the slot is freed, the score is kept.
+    assert int(court.get_agent_active_cases(bob)) == 0
+    assert int(court.get_agent_score(bob)) == 50
+    assert court.get_agent_stats(bob) == "1|0|0"
+
+    with direct_vm.expect_revert("case cannot be expired"):
+        court.expire_case(case_id)
+
+
+def test_expire_case_releases_a_stuck_accepted_case(court, direct_vm, alice, bob):
+    """An accepted case whose provider stops delivering frees the slot again."""
+    register_provider(court, direct_vm, bob, stake=500)
+    case_id = accepted_case(court, direct_vm, alice, bob)
+
+    # A provider holding an open case cannot withdraw its stake.
+    direct_vm.sender = bob
+    with direct_vm.expect_revert("active cases"):
+        court.withdraw_stake(500)
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_verdict(case_id) == "EXPIRED"
+    assert court.get_case_payouts(case_id) == "0|1000|0"
+    assert int(court.get_credit_of(alice)) == REWARD
+    assert int(court.get_agent_active_cases(bob)) == 0
+
+    # The freed slot is what allows the stake to leave again.
+    court.withdraw_stake(500)
+    assert int(court.get_agent_stake(bob)) == 0
+    assert int(court.get_credit_of(bob)) == 500
+
+
+def test_expire_case_before_the_deadline_reverts(court, direct_vm, alice, bob):
+    register_provider(court, direct_vm, bob)
+    case_id = open_case(court, direct_vm, alice, bob)
+
+    direct_vm.sender = alice
+    with direct_vm.expect_revert("deadline still open"):
+        court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "OPEN"
+    assert int(court.get_escrow_total()) == REWARD
+
+
+def test_expire_case_only_by_a_party_or_the_judge(court, direct_vm, carol, alice, bob):
+    register_provider(court, direct_vm, bob)
+    case_id = open_case(court, direct_vm, alice, bob)
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = carol
+    with direct_vm.expect_revert("not allowed to expire"):
+        court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "OPEN"
+
+
+def test_the_judge_can_expire_an_abandoned_case(court, direct_vm, direct_owner, alice, bob):
+    register_provider(court, direct_vm, bob)
+    case_id = open_case(court, direct_vm, alice, bob)
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = direct_owner
+    court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "SETTLED"
+    assert court.get_case_verdict(case_id) == "EXPIRED"
+
+
+def test_a_delivered_case_cannot_expire(court, direct_vm, alice, bob):
+    register_provider(court, direct_vm, bob)
+    case_id = delivered_case(court, direct_vm, alice, bob)
+
+    direct_vm.warp("2100-06-01T00:00:00Z")
+    direct_vm.sender = alice
+    with direct_vm.expect_revert("case cannot be expired"):
+        court.expire_case(case_id)
+
+    assert court.get_case_status(case_id) == "DELIVERED"

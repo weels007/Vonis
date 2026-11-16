@@ -712,6 +712,49 @@ async function main() {
     skip("real adjudication", "set RUN_ADJUDICATION=1 to run the LLM dispute path");
   }
 
+  // Expiry path: an accepted case past its delivery deadline must release the
+  // escrow. It needs a real wait, so it only runs when asked for.
+  if (process.env.RUN_EXPIRY === "1") {
+    try {
+      const before = Number(await read(c1, address, "get_case_count"));
+      const caseId = "case-" + before;
+      // Enough headroom for the open and accept transactions to land before the
+      // deadline, then a margin so the expiry call is certainly past it.
+      const deadline = Math.floor(Date.now() / 1000) + 240;
+
+      await write(
+        c1,
+        address,
+        "open_case",
+        [account2.address, "Expiry check", SPEC_URL, RUBRIC, deadline],
+        ONE_GEN
+      );
+      await write(c2, address, "accept_case", [caseId]);
+      pass("expire_case setup", `${caseId} ACCEPTED, deadline in 240s`);
+
+      while (Math.floor(Date.now() / 1000) <= deadline + 60) {
+        await sleep(POLL_INTERVAL);
+      }
+
+      await write(c2, address, "expire_case", [caseId]);
+      const json = JSON.parse(
+        String(await readWithRetry(c2, address, "get_case_json", [caseId], 3))
+      );
+      if (json.status !== "SETTLED" || json.verdict !== "EXPIRED") {
+        fail("expire_case", `${json.status}/${json.verdict}`);
+      } else {
+        pass(
+          "expire_case",
+          `${json.status}/${json.verdict} refund=${json.credit_requester}`
+        );
+      }
+    } catch (error) {
+      fail("expire_case", describeError(error));
+    }
+  } else {
+    skip("expire_case", "set RUN_EXPIRY=1 to wait out a delivery deadline live");
+  }
+
   summary();
   process.exit(failures > 0 ? 1 : 0);
 }
