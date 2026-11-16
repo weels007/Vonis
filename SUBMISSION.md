@@ -110,3 +110,15 @@ workflow after every deployment, so the app always points at the newest contract
   provider's slot), a manual award above 25% drops the provider-at-fault stake slash, and an
   `UNVERIFIABLE` case stays reachable by the judge or by the 14-day rescue path. The full write-up,
   including which methods were exercised live with the test wallets, is in `steward request.md`.
+
+## Follow-up — "What did you change?" (steward request)
+
+Paste the text below into that form field. It is about 965 characters, inside the 1000 limit.
+
+```text
+1. expire_case (contract): an OPEN or ACCEPTED case past its delivery deadline can be unwound by the requester, the provider or the judge. The reward is refunded, active_cases drops (so the stake can be withdrawn again), nothing is slashed and no score changes; verdict EXPIRED.
+2. judge_rule: the slash was keyed on a provider-at-fault verdict, so an override above 25% (AWARD_PROVIDER_MAX, shared with the award ladder) now stores JUDGED — the provider is paid and never slashed on top.
+3. UNVERIFIABLE needed no contract change: the client now shows the judge-only ruling form and, after 14 days, the settle_unresolved rescue, with copy on who can act, and no settle button the contract rejects.
+Tests: 6 expiry, 2 override boundaries, judge-after-rescue, provider-side rescue — 94 total, CI green. Proven live on Studionet with both test wallets: expire_case SETTLED/EXPIRED; override SETTLED/JUDGED, slashed 0. Contract 0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e.
+```
+
