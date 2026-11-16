@@ -5,8 +5,13 @@ Status: **done, deployed and exercised on Studionet with the project's two test 
 proved the judge override (`PROVIDER_AT_FAULT` → judge rules 50% → `JUDGED`, no slash). The current
 deployment is the one from the second run.
 
-- Contract: `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e`
+- Contract: `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e` — this is the one the frontend uses
+  (`CONTRACT_ADDRESS` in `src/lib/genlayer.ts`) and the one [SUBMISSION.md](SUBMISSION.md) links.
 - Explorer: https://explorer-studio.genlayer.com/address/0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e
+
+Every Studionet run deploys its own contract, because the node keeps state only while it keeps it.
+Section 5 lists a second address (`0x8024…`); that is the **previous** deployment, kept only as the
+evidence that `expire_case` ran on chain. Nothing points at it any more.
 
 ## 1. The request, as received
 
@@ -234,7 +239,7 @@ runs, both signed by the project's two test wallets:
 | --- | --- | --- |
 | Commit | `13ca73e` (`[studionet] [expiry]`) | `7816181` (`[studionet] [adjudication]`) |
 | Live job | `deploy-and-test`, 8m 52s, passed | `deploy-and-test`, 5m 14s, passed |
-| Deployed contract | `0x80249B8892E82984BbdcE9C1b85548f53D622ac4` | `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e` |
+| Deployed contract | `0x80249B8892E82984BbdcE9C1b85548f53D622ac4` (superseded) | `0x37C537dfeE740ea39557fdAdE1Ab47Fa18cfdc9e` (current, used by the app) |
 | Address recorded by | commit `90ae7a9` | commit `97fed58` |
 | What it proved | `expire_case` refunds a stuck `ACCEPTED` case | a `PROVIDER_AT_FAULT` verdict overridden to 50% keeps its stake |
 
